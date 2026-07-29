@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/* ===========================================================================
+   TOKENS DE DISEÑO
+
+   Único sitio del frontend donde hay un color escrito. Todo lo demás usa las
+   utilidades que Tailwind genera a partir de estas variables (`bg-surface`,
+   `text-long`, `border-line`...). Si mañana se cambia la paleta, se cambia
+   aquí y no hay que ir persiguiendo hex sueltos por los componentes.
+
+   Los cuatro tokens `cls-*` se llaman **igual que los valores de la columna
+   `color_token`** de `classification_thresholds` en la base de datos
+   ('strong', 'good', 'medium', 'none'). La BD decide la semántica —qué banda
+   es fuerte y cuál no— y el frontend decide qué aspecto tiene cada una. Van
+   prefijados con `cls-` porque un token llamado `none` chocaría con la clase
+   `bg-none` que Tailwind ya trae de serie.
+   =========================================================================== */
+
+@theme {
+  /* --- Superficies (de más al fondo a más al frente) --- */
+  --color-base: #0a0e13;
+  --color-surface: #111820;
+  --color-raised: #18212b;
+  --color-line: #24313e;
+
+  /* --- Texto --- */
+  --color-ink: #dce5ee;
+  --color-ink-dim: #8a99ab;
+  --color-ink-faint: #5f6f80;
+
+  /* --- Dirección: el signo del balance y nada más ---
+     Verde = alcista / LONG. Rojo = bajista / SHORT.
+     Los `-deep` son para fondos y barras, donde el color vivo cegaría. */
+  --color-long: #2ee08a;
+  --color-long-deep: #10402c;
+  --color-short: #ff5f56;
+  --color-short-deep: #4a1a18;
+
+  /* Ni una cosa ni la otra: balance 0, opción neutra, NO TRADE. */
+  --color-flat: #8494a6;
+
+  /* --- Clasificación (espejo de `color_token` en la BD) --- */
+  --color-cls-strong: #2ee08a;
+  --color-cls-good: #63c98d;
+  --color-cls-medium: #e0b341;
+  --color-cls-none: #8494a6;
+
+  /* --- Tipografía ---
+     Monoespaciada en todo el dashboard, a propósito: las cifras quedan
+     alineadas en columna y +30 / −30 ocupan lo mismo, que es justo lo que
+     hace comparable el desglose de un vistazo. Stack del sistema: sin fuentes
+     remotas, sin petición de red que pueda fallar ni CDN de terceros. */
+  --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", "SF Mono",
+    "Segoe UI Mono", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-base);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    /* Las cifras del desglose se leen en columna: sin ligaduras que junten
+       caracteres y sin variantes de ancho distinto. */
+    font-variant-ligatures: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-long-deep);
+    color: var(--color-ink);
+  }
+
+  /* Barras de scroll acordes al tema oscuro; en Firefox basta con esto. */
+  * {
+    scrollbar-color: var(--color-line) transparent;
+    scrollbar-width: thin;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-line);
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

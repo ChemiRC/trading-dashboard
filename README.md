@@ -141,7 +141,9 @@ trading-dashboard/
 ├── frontend/
 │   ├── public/
 │   ├── src/
-│   │   ├── api/           Cliente fetch contra el backend
+│   │   ├── api/
+│   │   │   ├── client.js  fetch + normalización de errores del backend
+│   │   │   └── config.js  endpoints de catálogo y configuración
 │   │   ├── components/
 │   │   │   ├── decision/  Decision Panel, Confluence Score, Permission Panel
 │   │   │   ├── setup/     Formulario de evaluación pre-trade
@@ -150,7 +152,9 @@ trading-dashboard/
 │   │   │   └── ui/        Componentes reutilizables
 │   │   ├── hooks/
 │   │   ├── lib/           Utilidades puras (formato, validación)
-│   │   └── pages/
+│   │   ├── pages/         ConnectionCheck — pantalla de diagnóstico
+│   │   └── index.css      Tokens de diseño (@theme de Tailwind)
+│   ├── vite.config.js
 │   └── .env.example
 ├── .gitignore
 └── README.md
@@ -169,6 +173,41 @@ trading-dashboard/
   reescribir el resto.
 - **`models/` separado de las rutas.** Los esquemas Pydantic son el contrato entre
   frontend y backend, y sirven de documentación viva en `/docs`.
+- **`src/api/` es el único que hace `fetch`.** Y el único que sabe qué forma tiene un
+  error del backend. De ahí sale o bien datos ya parseados, o bien un `ApiError` con
+  `code` y `message` listos para enseñar: ningún componente mira un `response.ok` ni
+  un `body.error.message`.
+- **`src/index.css` es el único sitio con un color escrito.** Los tokens se declaran
+  en el `@theme` de Tailwind y todo lo demás usa las utilidades que genera
+  (`text-long`, `bg-surface`, `border-line`). Cambiar la paleta es cambiar ese archivo,
+  no perseguir hex sueltos por los componentes.
+
+---
+
+## Frontend
+
+Tema oscuro, tipografía monoespaciada en todo el dashboard. Lo segundo no es estética:
+las cifras quedan alineadas en columna y `+30` / `−30` ocupan lo mismo, que es lo que
+hace comparable el desglose de un vistazo.
+
+### Tokens de color
+
+| Token | Para qué |
+| --- | --- |
+| `base` · `surface` · `raised` · `line` | Superficies, de más al fondo a más al frente |
+| `ink` · `ink-dim` · `ink-faint` | Texto principal, secundario, terciario |
+| `long` · `long-deep` | Alcista / LONG (verde) |
+| `short` · `short-deep` | Bajista / SHORT (rojo) |
+| `flat` | Balance 0, opción neutra, NO TRADE |
+| `cls-strong` · `cls-good` · `cls-medium` · `cls-none` | Bandas de clasificación |
+
+Los cuatro `cls-*` se llaman **igual que los valores de `color_token`** en
+`classification_thresholds`. La base de datos decide la semántica —qué banda es fuerte
+y cuál no—, el frontend decide qué aspecto tiene cada una. Van prefijados porque un
+token llamado `none` chocaría con la clase `bg-none` que Tailwind ya trae de serie.
+
+Fuentes del sistema, sin CDN: una petición de red menos que pueda fallar y ningún
+tercero al que pedirle permiso.
 
 ---
 
@@ -311,7 +350,19 @@ npm install
 npm run dev
 ```
 
-Disponible en `http://localhost:5173`.
+Disponible en `http://localhost:5173`. **El backend tiene que estar levantado**: la
+pantalla de arranque llama a `GET /api/config/catalog` nada más cargar.
+
+El puerto es `strictPort`: si el 5173 está ocupado, Vite falla en vez de saltar al
+5174. El backend autoriza por CORS una lista blanca concreta, así que cambiar de puerto
+en silencio convertiría un "puerto ocupado" en un error de CORS incomprensible.
+
+### El proyecto no debe vivir dentro de OneDrive
+
+`node_modules` y `.venv` son decenas de miles de archivos que OneDrive intentará
+sincronizar: `npm install` falla con `EPERM`/`EBUSY` porque el sincronizador mantiene
+archivos bloqueados mientras los sube. Este repositorio vive en `C:\dev\trading-dashboard`
+justamente por eso.
 
 ---
 
@@ -396,7 +447,7 @@ Orden de entrega acordado:
 2. [x] Esquema SQL de la base de datos — ver [backend/sql/README.md](backend/sql/README.md)
 3. [x] Backend: motor de decisión (función pura) + tests — `app/scoring/`, 41 tests
 4. [x] Backend: endpoints FastAPI — `app/api/`, 33 tests contra la BD real
-5. [ ] Frontend: setup de Vite + Tailwind + estructura de componentes
+5. [x] Frontend: Vite + React 18 + Tailwind, cliente de API y pantalla de conexión
 6. [ ] Frontend: formulario de evaluación de setup
 7. [ ] Frontend: Decision Panel + Confluence Score + Permission Panel
 8. [ ] Frontend: gestión de riesgo
