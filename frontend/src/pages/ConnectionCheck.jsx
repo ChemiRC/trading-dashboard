@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { API_BASE_URL } from "../api/client.js";
 import { getCatalog } from "../api/config.js";
+import { conSigno, tono } from "../lib/format.js";
 
 /**
  * Pantalla de diagnóstico. NO es un panel del producto.
@@ -14,17 +15,6 @@ import { getCatalog } from "../api/config.js";
  * Por eso enseña los datos crudos y sin interpretar: aquí no se decide nada,
  * solo se demuestra que la cadena completa funciona de punta a punta.
  */
-
-/** El signo del balance es lo único que marca la dirección. También al pintar. */
-function tono(puntos) {
-  if (puntos > 0) return "text-long";
-  if (puntos < 0) return "text-short";
-  return "text-flat";
-}
-
-function conSigno(puntos) {
-  return puntos > 0 ? `+${puntos}` : String(puntos);
-}
 
 /**
  * Los `color_token` vienen de la base de datos ('strong', 'good', 'medium',

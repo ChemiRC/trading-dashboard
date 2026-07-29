@@ -30,3 +30,41 @@ export function getConfigHealth(options) {
 export function getBackendHealth(options) {
   return request("/health/db", options);
 }
+
+// ---------------------------------------------------------------------------
+//  Edición
+//
+//  Los tres son PATCH: se manda solo lo que cambió. Ninguno valida nada aquí
+//  —que el peso cubra sus opciones, que las bandas no se solapen, que solo
+//  haya un default— porque esas reglas viven en los triggers del esquema y
+//  llegan de vuelta como un 409 con el mensaje ya escrito. Comprobarlas
+//  también en JavaScript sería tener la misma verdad en dos sitios que se
+//  pueden desincronizar.
+// ---------------------------------------------------------------------------
+
+/** Peso, nombre, orden de presentación o activo de un indicador. */
+export function patchIndicator(code, changes, options) {
+  return request(`/api/config/indicators/${encodeURIComponent(code)}`, {
+    method: "PATCH",
+    body: changes,
+    ...options,
+  });
+}
+
+/** Etiqueta, puntos, opción por defecto o activa. Va por id, no por code: el code solo es único dentro de su indicador. */
+export function patchOption(optionId, changes, options) {
+  return request(`/api/config/options/${optionId}`, {
+    method: "PATCH",
+    body: changes,
+    ...options,
+  });
+}
+
+/** Etiqueta y rango de una banda de clasificación. */
+export function patchThreshold(code, changes, options) {
+  return request(`/api/config/thresholds/${encodeURIComponent(code)}`, {
+    method: "PATCH",
+    body: changes,
+    ...options,
+  });
+}
