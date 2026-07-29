@@ -1,0 +1,61 @@
+# ==============================================================
+#  Credenciales y entorno  —  NUNCA se commitean
+# ==============================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets.json
+supabase.txt
+
+# ==============================================================
+#  Backend  (Python / FastAPI)
+# ==============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# ==============================================================
+#  Frontend  (Node / Vite)
+# ==============================================================
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==============================================================
+#  Editores
+# ==============================================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ==============================================================
+#  Sistema operativo / OneDrive
+# ==============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
