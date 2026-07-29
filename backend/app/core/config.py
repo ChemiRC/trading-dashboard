@@ -43,9 +43,10 @@ class Settings(BaseSettings):
     #: Orígenes permitidos por CORS, separados por comas.
     cors_origins: str = "http://localhost:5173"
 
-    #: REGLA B — PENDIENTE DE CONFIRMAR CON EL TRADER.
-    #: Vive aquí y no en el código porque está sin cerrar: si el trader la
-    #: descarta, es una variable de entorno, no un despliegue. Ver README.
+    #: REGLA B — confirmada por el trader y activa por defecto.
+    #: Sigue siendo un interruptor, y no una constante cableada, porque apagarla
+    #: es la única forma de medir cuánto filtra: se pone a false y se compara el
+    #: histórico. Ver README.
     rule_b_enabled: bool = True
 
     #: Tamaño del pool. Un dashboard de un solo usuario no necesita más.

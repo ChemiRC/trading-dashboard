@@ -90,20 +90,24 @@ divergencia alcista +30 pero balance total −40), el resultado es **NO TRADE**.
 disparador apunta a un lado y la evidencia al otro: es justamente el caso en el que
 hay que quedarse fuera.
 
-> ⚠️ La Regla B está **pendiente de confirmación final con el trader** y podría cambiar.
-> Está aislada en el código y en el esquema para poder retirarla sin tocar nada más.
+> ✅ **La Regla B está confirmada por el trader** y activa. Se queda detrás del
+> interruptor `RULE_B_ENABLED` —que sigue siendo una variable de entorno, no un
+> despliegue— porque desactivarla es la única forma de medir cuánto filtra: basta
+> ponerla a `false` y comparar el histórico. El valor por defecto es `true`.
 
 > Pesos, opciones y umbrales **viven en la base de datos**, no en el código. Se editan
 > desde la pantalla de configuración. Añadir un indicador nuevo debe ser insertar filas,
 > no editar y redesplegar código.
 
-### Pendiente de confirmar con el trader
+### Decisiones cerradas con el trader
 
-- **Catálogo definitivo de patrones gráficos** y si todos valen lo mismo. Ahora mismo
-  hay tres opciones genéricas (alcista / sin patrón / bajista) a ±10. **Los triángulos
-  quedan fuera a propósito**: son ambiguos, pueden resolver hacia arriba o hacia abajo,
-  y meterlos ahora obligaría a inventarles un signo.
-- **Confirmación de la Regla B.**
+- **Regla B — confirmada.** Si el balance contradice el signo de la divergencia, el
+  resultado es NO TRADE. Ver el aviso de arriba.
+- **Patrones gráficos — todos valen lo mismo dentro de su dirección.** Un patrón
+  alcista suma +10 y uno bajista resta −10, sea bull flag, doble piso o HCH invertido:
+  el trader los usa como confirmación, no como disparador, y ninguno pesa más que otro.
+  **Los triángulos quedan fuera a propósito**: son ambiguos, pueden resolver hacia
+  arriba o hacia abajo, y meterlos obligaría a inventarles un signo.
 
 ---
 
@@ -111,11 +115,16 @@ hay que quedarse fuera.
 
 | Capa          | Tecnología                                      |
 | ------------- | ----------------------------------------------- |
-| Frontend      | React 18 + Vite + Tailwind CSS + Recharts       |
+| Frontend      | React 18 + Vite + Tailwind CSS                   |
 | Cliente HTTP  | `fetch` nativo (sin axios)                      |
 | Backend       | Python 3.11 + FastAPI + Pydantic                |
 | Base de datos | PostgreSQL en Supabase                          |
 | Deploy        | Frontend → Vercel · Backend → Railway           |
+
+Toda la dependencia de producción del frontend es React: ni librería de gráficas, ni de
+routing, ni de estado. La barra de balance del Decision Panel son dos `div` con un
+ancho en porcentaje, y no hay nada más que dibujar en la Fase 1. **Recharts entra en la
+Fase 3**, con la equity curve y el drawdown, que sí son gráficas de verdad.
 
 ---
 
@@ -125,7 +134,7 @@ hay que quedarse fuera.
 trading-dashboard/
 ├── backend/
 │   ├── app/
-│   │   ├── adapters/      Interfaz de fuentes de datos (hoy manual, mañana API)
+│   │   ├── adapters/      Vacío: reservado para las fuentes de datos de la Fase 2
 │   │   ├── api/
 │   │   │   ├── deps.py    Conexión y configuración vigente por petición
 │   │   │   ├── errors.py  Errores internos → respuestas HTTP
@@ -143,17 +152,38 @@ trading-dashboard/
 │   ├── src/
 │   │   ├── api/
 │   │   │   ├── client.js  fetch + normalización de errores del backend
-│   │   │   └── config.js  endpoints de catálogo y configuración
+│   │   │   ├── config.js  catálogo, salud y PATCH de configuración
+│   │   │   └── setups.js  evaluar · guardar · histórico
 │   │   ├── components/
-│   │   │   ├── decision/  Decision Panel, Confluence Score, Permission Panel
-│   │   │   ├── setup/     Formulario de evaluación pre-trade
-│   │   │   ├── risk/      Gestión de riesgo
-│   │   │   ├── settings/  Edición de pesos y umbrales
-│   │   │   └── ui/        Componentes reutilizables
+│   │   │   ├── decision/
+│   │   │   │   ├── DecisionPanel.jsx     Veredicto y barra de balance
+│   │   │   │   ├── ConfluenceScore.jsx   Desglose con signo por indicador
+│   │   │   │   └── PermissionPanel.jsx   Clasificación y motivo del NO TRADE
+│   │   │   ├── setup/
+│   │   │   │   ├── EvaluationForm.jsx    Los 6 indicadores; evalúa en vivo
+│   │   │   │   └── SaveSetupPanel.jsx    Símbolo/TF/precio/notas → guardar
+│   │   │   ├── risk/
+│   │   │   │   └── RiskCalculator.jsx    R:B, tamaño de posición, ATR
+│   │   │   ├── settings/
+│   │   │   │   ├── IndicatorSettings.jsx Pesos y puntos de las opciones
+│   │   │   │   ├── ThresholdSettings.jsx Bandas de clasificación
+│   │   │   │   ├── ConfigHealth.jsx      Semáforo de v_config_health + Regla B
+│   │   │   │   └── EditControls.jsx      Campos y barra de guardado
+│   │   │   └── ui/        Reservado para componentes reutilizables (vacío)
 │   │   ├── hooks/
-│   │   ├── lib/           Utilidades puras (formato, validación)
-│   │   ├── pages/         ConnectionCheck — pantalla de diagnóstico
+│   │   │   └── useConfigDrafts.js  Borradores por fila de la configuración
+│   │   ├── lib/
+│   │   │   ├── format.js  Puntos con signo, color por signo, cifras
+│   │   │   └── risk.js    Cálculos de riesgo — funciones puras
+│   │   ├── pages/
+│   │   │   ├── SetupEvaluation.jsx  Formulario + los tres paneles
+│   │   │   ├── RiskCalculation.jsx  Gestión de riesgo
+│   │   │   ├── Settings.jsx         Configuración de la estrategia
+│   │   │   └── ConnectionCheck.jsx  Diagnóstico (no montada; ver abajo)
+│   │   ├── App.jsx        Pestañas entre las tres pantallas
+│   │   ├── main.jsx       Punto de entrada de React
 │   │   └── index.css      Tokens de diseño (@theme de Tailwind)
+│   ├── tests/             test_risk.mjs — cálculos de riesgo, sin framework
 │   ├── vite.config.js
 │   └── .env.example
 ├── .gitignore
@@ -167,10 +197,12 @@ trading-dashboard/
   clasificación y el desglose. Nada más: no toca la base de datos, no sabe qué es HTTP.
   Así se puede testear con una tabla de casos y, en la Fase 5, reusarlo tal cual para
   hacer backtesting.
-- **`adapters/` desde el día uno.** Hoy los valores de los indicadores llegan de un
-  formulario manual. En fases posteriores llegarán de la API de Bybit o de un detector
-  automático. Si todo entra por la misma interfaz, cambiar el origen no obliga a
-  reescribir el resto.
+- **`adapters/` está reservado, todavía vacío.** Hoy los valores de los indicadores
+  llegan de un formulario manual y entran directamente por los modelos Pydantic, sin
+  capa intermedia: en la Fase 1 no hay dos orígenes que abstraer, y una interfaz con
+  una sola implementación es una indirección que no paga su precio. La carpeta existe
+  para que la Fase 2 —API de Bybit, detección automática— tenga sitio evidente donde
+  ir, no porque ya haya nada dentro.
 - **`models/` separado de las rutas.** Los esquemas Pydantic son el contrato entre
   frontend y backend, y sirven de documentación viva en `/docs`.
 - **`src/api/` es el único que hace `fetch`.** Y el único que sabe qué forma tiene un
@@ -189,6 +221,45 @@ trading-dashboard/
 Tema oscuro, tipografía monoespaciada en todo el dashboard. Lo segundo no es estética:
 las cifras quedan alineadas en columna y `+30` / `−30` ocupan lo mismo, que es lo que
 hace comparable el desglose de un vistazo.
+
+### Las tres pantallas
+
+Se navega entre ellas con pestañas y estado local, **sin librería de routing**: ninguna
+necesita URL propia ni botón de atrás, así que un router sería una dependencia entera
+para resolver lo que `useState` ya resuelve.
+
+| Pestaña | Qué hace |
+| --- | --- |
+| **Evaluación de setup** | Los 6 indicadores, los tres paneles de decisión y el guardado |
+| **Gestión de riesgo** | R:B, tamaño de posición, pérdida máxima, ratios ATR |
+| **Configuración** | Pesos, puntos, bandas y el semáforo de salud |
+
+`ConnectionCheck` sigue en `pages/` pero **ya no se monta**: cumplió su papel en la
+entrega 5 —demostrar que el frontend llega a Supabase de punta a punta— y se queda
+como herramienta de diagnóstico a la que se vuelve editando `App.jsx`.
+
+### Evaluar no es guardar
+
+Son dos acciones distintas y el frontend las mantiene separadas a propósito:
+
+- **Evaluar** ocurre solo, en cada clic sobre una opción, contra
+  `POST /api/setups/evaluate`. No escribe nada. Es lo que alimenta el Decision Panel.
+- **Guardar** ocurre solo cuando el trader pulsa *Guardar setup*, contra
+  `POST /api/setups`. Pide lo que el veredicto no puede deducir —símbolo, timeframe,
+  precio al evaluar y notas opcionales— y persiste el setup con sus puntos congelados.
+
+Lo que se manda al guardar son **las mismas selecciones**, nunca el balance: el
+backend reevalúa. Lo que enseña el Decision Panel es una previsualización, no el
+veredicto que se archiva.
+
+El precio viaja como **texto**, no como número: la columna es `numeric` y pasar por un
+float de JavaScript convertiría `67432.55` en `67432.549999…`. Es justo el dato que la
+Fase 2 comparará con el precio real de entrada en Bybit.
+
+**Los NO TRADE también se guardan, y es intencionado.** Un setup descartado por la
+Regla A, la Regla B o por score bajo registra las veces que el trader se contuvo
+teniendo evidencia parcial. Esa es la parte del histórico que mide disciplina y no
+aciertos, así que la interfaz lo dice en vez de dar a entender que no merece la pena.
 
 ### Tokens de color
 
@@ -221,7 +292,7 @@ Documentación interactiva completa en `/docs`. Resumen:
 | `GET`   | `/health/db`                     | La BD responde y la configuración es coherente |
 | `GET`   | `/api/config/catalog`            | Indicadores, opciones, umbrales y defaults     |
 | `GET`   | `/api/config/thresholds`         | Solo las bandas de clasificación               |
-| `GET`   | `/api/config/health`             | La vista `v_config_health`                     |
+| `GET`   | `/api/config/health`             | La vista `v_config_health` + si la Regla B está activa |
 | `PATCH` | `/api/config/indicators/{code}`  | Editar peso, nombre, orden, activo             |
 | `PATCH` | `/api/config/options/{id}`       | Editar etiqueta, puntos, default, activa       |
 | `PATCH` | `/api/config/thresholds/{code}`  | Editar una banda                               |
@@ -330,7 +401,7 @@ Disponible en `http://localhost:8000` · documentación interactiva en `/docs`.
 El arranque **espera a tener conexión** con la base de datos. Si las credenciales
 están mal, falla ahí y no en la primera petición del trader.
 
-Tests:
+Tests (74: 41 del motor, 33 de la API):
 
 ```powershell
 cd backend
@@ -356,6 +427,22 @@ pantalla de arranque llama a `GET /api/config/catalog` nada más cargar.
 El puerto es `strictPort`: si el 5173 está ocupado, Vite falla en vez de saltar al
 5174. El backend autoriza por CORS una lista blanca concreta, así que cambiar de puerto
 en silencio convertiría un "puerto ocupado" en un error de CORS incomprensible.
+
+Tests (15, sobre los cálculos de riesgo):
+
+```powershell
+cd frontend
+node tests/test_risk.mjs
+```
+
+Sin framework y sin dependencias: `node:assert` basta para funciones puras, y meter un
+runner entero para un archivo de aritmética sería más cadena de suministro que test.
+Cubren R:B, tamaño de posición, el caso agnóstico largo/corto, las divisiones por cero
+—que devuelven `null`, nunca `Infinity` ni `NaN`— y el ATR opcional. Salen con código
+distinto de 0 si algo falla, así que sirven tal cual en CI.
+
+El resto del frontend no tiene tests automáticos: se ha verificado a mano contra el
+backend real, pantalla por pantalla.
 
 ### El proyecto no debe vivir dentro de OneDrive
 
@@ -392,13 +479,17 @@ sistema calcula el balance. No se detecta nada automáticamente todavía.
 
 **Se construye:**
 
-- [ ] Decision Panel — LONG / SHORT / NO TRADE con el balance visible
-- [ ] Confluence Score — desglose de la aportación con signo de cada indicador
-- [ ] Permission Panel — clasificación derivada del valor absoluto del balance
-- [ ] Formulario de evaluación pre-trade (se guarda **antes** de conocer el resultado)
-- [ ] Gestión de riesgo — R:B, tamaño de posición, pérdida máxima
-- [ ] Configuración — edición de pesos y umbrales sin tocar código
+- [x] Decision Panel — LONG / SHORT / NO TRADE con el balance visible
+- [x] Confluence Score — desglose de la aportación con signo de cada indicador
+- [x] Permission Panel — clasificación derivada del valor absoluto del balance
+- [x] Formulario de evaluación pre-trade, que evalúa en vivo sin escribir nada
+- [x] Guardado del setup en el histórico — símbolo, timeframe, precio y notas,
+      **antes** de conocer el resultado y con los puntos congelados
+- [x] Gestión de riesgo — R:B, tamaño de posición, pérdida máxima
+- [x] Configuración — edición de pesos y umbrales sin tocar código
 - [x] Backend con endpoints reales contra Supabase (ver [API](#api))
+
+**La Fase 1 está completa.**
 
 **No se construye en esta fase:** detección automática de divergencias o patrones,
 integración con Kiyotaka, panel SDCA e indicadores on-chain, integración con Bybit,
@@ -441,14 +532,32 @@ Decisiones tomadas hoy que hacen posibles esas fases:
 
 ## Estado actual
 
-Orden de entrega acordado:
+**Fase 1 completa.** Orden de entrega acordado:
 
 1. [x] Estructura de carpetas, `.gitignore`, `.env.example`, README
 2. [x] Esquema SQL de la base de datos — ver [backend/sql/README.md](backend/sql/README.md)
 3. [x] Backend: motor de decisión (función pura) + tests — `app/scoring/`, 41 tests
 4. [x] Backend: endpoints FastAPI — `app/api/`, 33 tests contra la BD real
 5. [x] Frontend: Vite + React 18 + Tailwind, cliente de API y pantalla de conexión
-6. [ ] Frontend: formulario de evaluación de setup
-7. [ ] Frontend: Decision Panel + Confluence Score + Permission Panel
-8. [ ] Frontend: gestión de riesgo
-9. [ ] Frontend: configuración de pesos y umbrales
+6. [x] Frontend: formulario de evaluación de setup
+7. [x] Frontend: Decision Panel + Confluence Score + Permission Panel
+8. [x] Frontend: gestión de riesgo
+9. [x] Frontend: configuración de pesos y umbrales
+10. [x] Frontend: guardado del setup en el histórico — `POST /api/setups`,
+       incluidos los NO TRADE
+
+### Mejoras futuras
+
+Ninguna bloquea la Fase 2; son cosas que se han quedado a propósito fuera del alcance.
+
+- **Puntuar los patrones gráficos de forma distinta entre sí.** Hoy todos los alcistas
+  valen +10 y todos los bajistas −10. Si el trader decide que un bull flag pesa más que
+  un doble piso, son filas nuevas en `indicator_options`, no código.
+- **Ver y reactivar indicadores u opciones inactivos.** La pantalla de configuración
+  permite desactivarlos, pero `GET /api/config/catalog` solo devuelve los activos, así
+  que desde ahí no se pueden recuperar: hoy hay que reactivarlos en la base de datos.
+  Haría falta un parámetro nuevo en el endpoint del catálogo.
+- **Histórico de setups en pantalla.** `GET /api/setups` existe, está probado y ya
+  tiene su envoltorio en `src/api/setups.js` (`listSetups`), pero ninguna pantalla lo
+  consume todavía. Es la puerta de entrada natural del Trading Journal de la Fase 2.
+- **Tests automáticos del frontend más allá de `lib/risk.js`.**

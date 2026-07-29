@@ -124,9 +124,11 @@ on conflict (indicator_id, code) do update set
 
 
 -- ---- 5. PATRONES GRÁFICOS — peso 10 -----------------------------------------
--- PENDIENTE con el trader: catálogo definitivo y si todos los patrones valen
--- lo mismo. Los triángulos quedan FUERA a propósito: son ambiguos y meterlos
--- ahora obligaría a inventarles un signo. Cuando se decida, esto son INSERT.
+-- DECIDIDO con el trader: todos los patrones valen lo mismo dentro de su
+-- dirección (+10 alcista / -10 bajista), sin distinguir el tipo. Los usa como
+-- confirmación, no como disparador. Los triángulos quedan FUERA a propósito:
+-- son ambiguos y meterlos obligaría a inventarles un signo. Si algún día uno
+-- pesa distinto que otro, esto son INSERT, no código.
 insert into indicator_options (indicator_id, code, label, points, display_order, is_default)
 select i.id, v.code, v.label, v.points, v.display_order, v.is_default
 from indicators i,

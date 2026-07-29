@@ -79,10 +79,9 @@ class EngineConfig:
     indicators: tuple[Indicator, ...]
     thresholds: tuple[Threshold, ...]
 
-    #: REGLA B — PENDIENTE DE CONFIRMAR CON EL TRADER.
-    #: Se deja como interruptor en vez de cablearla porque la regla está sin
-    #: cerrar. Si el trader la descarta, esto pasa a False y ni el motor ni el
-    #: esquema cambian. Ver README.
+    #: REGLA B — confirmada por el trader y activa por defecto.
+    #: Se deja como interruptor en vez de cablearla para poder apagarla y medir
+    #: cuánto filtra sin tocar el motor ni el esquema. Ver README.
     rule_b_enabled: bool = True
 
     @property

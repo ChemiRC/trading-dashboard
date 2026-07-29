@@ -79,14 +79,19 @@ def get_thresholds(conn: Conn) -> list[ThresholdOut]:
 
 
 @router.get("/health", response_model=ConfigHealthOut, summary="v_config_health")
-def get_config_health(conn: Conn) -> ConfigHealthOut:
-    """La vista `v_config_health` tal cual.
+def get_config_health(conn: Conn, settings: Config) -> ConfigHealthOut:
+    """La vista `v_config_health`, más si la Regla B está activa.
 
     La pantalla de ajustes la usa para avisar cuando el trader deja los pesos
     sin sumar 100: sin este aviso, el "máximo ±100" del README pasaría a ser
-    mentira sin que nadie se enterase.
+    mentira sin que nadie se enterase. `rule_b_enabled` viene de la
+    configuración del proceso, no de la vista: sin él, un `RULE_B_ENABLED=false`
+    puesto por accidente no se nota en ningún sitio.
     """
-    return ConfigHealthOut(**config_repo.fetch_config_health(conn))
+    return ConfigHealthOut(
+        **config_repo.fetch_config_health(conn),
+        rule_b_enabled=settings.rule_b_enabled,
+    )
 
 
 # ---------------------------------------------------------------------------

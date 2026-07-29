@@ -178,11 +178,9 @@ def evaluate(
     direction = "LONG" if raw_balance > 0 else "SHORT"
 
     # ---- 5. REGLA B — contradicción disparador vs. evidencia ---------------
-    # ##################################################################
-    # ##  PENDIENTE DE CONFIRMACION FINAL CON EL TRADER.              ##
-    # ##  Si la descarta: config.rule_b_enabled = False y ya está.    ##
-    # ##  Ni este fichero ni el esquema SQL necesitan cambiar.        ##
-    # ##################################################################
+    # Confirmada por el trader y activa por defecto. Sigue detrás de
+    # `config.rule_b_enabled` para poder apagarla y medir cuánto filtra: ni este
+    # fichero ni el esquema SQL cambian.
     #
     # El disparador apunta a un lado y la suma de la evidencia al otro
     # (divergencia alcista +30, balance total -40). Es justamente el caso en el

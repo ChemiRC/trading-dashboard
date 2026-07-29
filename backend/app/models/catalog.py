@@ -57,15 +57,28 @@ class CatalogOut(BaseModel):
 
 
 class ConfigHealthOut(BaseModel):
-    """Espejo de la vista `v_config_health`."""
+    """Espejo de la vista `v_config_health`, más el estado de la Regla B.
+
+    `rule_b_enabled` no sale de la vista -- no es una columna de ninguna
+    tabla, es la variable de entorno `RULE_B_ENABLED` leída en este proceso.
+    Va aquí para que la pantalla de ajustes no tenga que mirar dos sitios
+    distintos para saber si la configuración vigente es la que el trader
+    espera.
+    """
 
     suma_pesos: int
     suma_es_100: bool
     tiene_puerta: bool
     umbrales_cubren_0_100: bool
+    rule_b_enabled: bool
 
     @property
     def todo_ok(self) -> bool:
+        # Deliberadamente NO incluye `rule_b_enabled`: esto describe si la
+        # BASE DE DATOS es coherente (pesos, puerta, huecos en las bandas).
+        # La Regla B apagada no corrompe nada de eso -- el balance sigue
+        # significando lo mismo -- así que mezclarla aquí haría que este
+        # aviso mintiera sobre por qué hay que revisar algo.
         return self.suma_es_100 and self.tiene_puerta and self.umbrales_cubren_0_100
 
 

@@ -94,7 +94,8 @@ def test_regla_a_devuelve_igualmente_lo_que_respondio_el_trader(config):
 
 # =============================================================================
 #  REGLA B — contradicción entre disparador y evidencia
-#  PENDIENTE DE CONFIRMAR CON EL TRADER
+#  Confirmada por el trader. Se prueba encendida y apagada porque el
+#  interruptor sigue existiendo para poder medir cuánto filtra.
 # =============================================================================
 
 def test_regla_b_ejemplo_literal_del_trader(config):
