@@ -1,9 +1,15 @@
-"""Configuración de prueba: espejo exacto de backend/sql/002_seed.sql.
+"""Fixtures compartidas.
 
-Si cambian los pesos o el catálogo en el seed, hay que cambiarlos aquí. Es
-duplicación deliberada: los tests tienen que fallar cuando alguien toque el
-catálogo sin darse cuenta de lo que arrastra. Un test que lee la configuración
-de la misma fuente que el código no comprueba nada.
+La primera mitad es la configuración de prueba del motor: **espejo exacto** de
+backend/sql/002_seed.sql. Si cambian los pesos o el catálogo en el seed, hay que
+cambiarlos aquí. Es duplicación deliberada: los tests tienen que fallar cuando
+alguien toque el catálogo sin darse cuenta de lo que arrastra. Un test que lee la
+configuración de la misma fuente que el código no comprueba nada.
+
+La segunda mitad son las fixtures de los tests de API, que sí hablan con la base
+de datos real. FastAPI y psycopg se importan **dentro** de las funciones: así los
+tests del motor siguen corriendo con `pip install pytest` y nada más, que es lo
+que dice `requirements-dev.txt`.
 """
 
 import pytest
@@ -116,3 +122,85 @@ def sel(**overrides: str) -> dict[str, str]:
     }
     base.update(overrides)
     return base
+
+
+# ===========================================================================
+#  Fixtures de los tests de API  (test_api.py)
+# ===========================================================================
+
+#: Símbolo reservado para las pruebas. Todo lo que se escriba con él se borra
+#: al terminar la sesión.
+SYMBOL_PRUEBAS = "ZZTEST"
+
+
+@pytest.fixture(scope="session")
+def client():
+    """Cliente HTTP con el lifespan de la app activo.
+
+    De sesión: abrir y cerrar el pool contra Supabase en cada test multiplicaría
+    por cien el tiempo de la suite sin comprobar nada más.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture(scope="session", autouse=True)
+def limpia_setups_de_prueba():
+    """Borra los setups del símbolo de pruebas al acabar.
+
+    Se ejecuta también antes, por si una ejecución anterior murió a mitad. El
+    borrado arrastra `setup_selections` por el ON DELETE CASCADE, y no toca
+    ninguna otra fila: el filtro es el símbolo reservado.
+    """
+    def borra() -> int:
+        try:
+            import psycopg
+
+            from app.core import get_settings
+        except ImportError:
+            return 0
+        with psycopg.connect(get_settings().database_url, sslmode="require") as conn:
+            n = conn.execute(
+                "delete from setups where symbol = %s", [SYMBOL_PRUEBAS]
+            ).rowcount
+            conn.commit()
+        return n
+
+    borra()
+    yield
+    borra()
+
+
+@pytest.fixture(scope="session")
+def catalogo(client):
+    return client.get("/api/config/catalog").json()
+
+
+@pytest.fixture
+def todo_alcista() -> dict[str, str]:
+    """Selección que da exactamente +100: el máximo teórico."""
+    return {
+        "rsi_divergence": "regular_bullish",   # +30
+        "weekly_trend": "bullish",             # +20
+        "support_resistance": "near_support",  # +15
+        "liquidity": "lower_swept",            # +15
+        "chart_pattern": "bullish",            # +10
+        "kiyotaka_barrier": "buy_wall",        # +10
+    }
+
+
+@pytest.fixture
+def todo_bajista() -> dict[str, str]:
+    """El espejo exacto: -100."""
+    return {
+        "rsi_divergence": "regular_bearish",
+        "weekly_trend": "bearish",
+        "support_resistance": "near_resistance",
+        "liquidity": "upper_swept",
+        "chart_pattern": "bearish",
+        "kiyotaka_barrier": "sell_wall",
+    }

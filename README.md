@@ -126,13 +126,17 @@ trading-dashboard/
 ├── backend/
 │   ├── app/
 │   │   ├── adapters/      Interfaz de fuentes de datos (hoy manual, mañana API)
-│   │   ├── api/routes/    Endpoints FastAPI
+│   │   ├── api/
+│   │   │   ├── deps.py    Conexión y configuración vigente por petición
+│   │   │   ├── errors.py  Errores internos → respuestas HTTP
+│   │   │   └── routes/    health · config · setups
 │   │   ├── core/          Configuración, lectura de variables de entorno
-│   │   ├── db/            Acceso a PostgreSQL / Supabase
+│   │   ├── db/            Pool y repositorios de PostgreSQL / Supabase
 │   │   ├── models/        Esquemas Pydantic (contratos de entrada y salida)
-│   │   └── scoring/       Motor de decisión — función pura, sin dependencias
+│   │   ├── scoring/       Motor de decisión — función pura, sin dependencias
+│   │   └── main.py        Creación de la app, CORS, lifespan
 │   ├── sql/               Esquema y seed  (001_schema · 002_seed · README)
-│   ├── tests/             Tests del motor de decisión
+│   ├── tests/             test_engine (puro) · test_api (contra la BD real)
 │   └── .env.example
 ├── frontend/
 │   ├── public/
@@ -165,6 +169,77 @@ trading-dashboard/
   reescribir el resto.
 - **`models/` separado de las rutas.** Los esquemas Pydantic son el contrato entre
   frontend y backend, y sirven de documentación viva en `/docs`.
+
+---
+
+## API
+
+Documentación interactiva completa en `/docs`. Resumen:
+
+| Método  | Ruta                             | Qué hace                                       |
+| ------- | -------------------------------- | ---------------------------------------------- |
+| `GET`   | `/health`                        | El proceso responde. No toca la base de datos. |
+| `GET`   | `/health/db`                     | La BD responde y la configuración es coherente |
+| `GET`   | `/api/config/catalog`            | Indicadores, opciones, umbrales y defaults     |
+| `GET`   | `/api/config/thresholds`         | Solo las bandas de clasificación               |
+| `GET`   | `/api/config/health`             | La vista `v_config_health`                     |
+| `PATCH` | `/api/config/indicators/{code}`  | Editar peso, nombre, orden, activo             |
+| `PATCH` | `/api/config/options/{id}`       | Editar etiqueta, puntos, default, activa       |
+| `PATCH` | `/api/config/thresholds/{code}`  | Editar una banda                               |
+| `POST`  | `/api/setups/evaluate`           | Evaluar **sin guardar**                        |
+| `POST`  | `/api/setups`                    | Evaluar **y guardar**                          |
+| `GET`   | `/api/setups`                    | Histórico, con filtros y paginación            |
+| `GET`   | `/api/setups/{id}`               | Un setup con su desglose congelado             |
+
+### Decisiones de esta capa
+
+**`/evaluate` y `POST /api/setups` están separados.** El formulario llama al
+primero cada vez que el trader marca una opción, para que el Decision Panel se
+actualice en vivo. Si previsualizar guardase, el histórico se llenaría de setups
+a medio rellenar y dejaría de medir nada.
+
+**El backend reevalúa siempre; no acepta un balance calculado por el cliente.**
+Si el frontend pudiera mandar el veredicto, bastaría un bug —o alguien tocando la
+petición— para guardar un setup que dice haber puntuado algo que nunca puntuó.
+
+**No hay campo `direction` en la entrada, y mandarlo es un error 422.** Es la
+regla del modelo de decisión hecha contrato: el trader describe lo que ve, el
+motor deduce el sentido.
+
+**Las reglas de configuración no se validan en Python.** Que el peso cubra sus
+opciones, que solo haya una puerta, que las bandas no se solapen: eso lo hacen
+cumplir los triggers y constraints del esquema. La API traduce su negativa a un
+`409` y **propaga el mensaje original**, que explica el caso concreto:
+
+```json
+{ "error": {
+    "code": "DB_CONSTRAINT",
+    "message": "No se puede bajar el peso de \"Divergencia RSI\" a 5: ya tiene una opcion de 30 puntos absolutos."
+} }
+```
+
+Reimplementar esas comprobaciones aquí sería tener la misma verdad en dos sitios
+que se pueden desincronizar.
+
+**Todos los errores tienen la misma forma**, `{"error": {"code", "message"}}`,
+incluidos los que genera FastAPI por su cuenta:
+
+| Código  | Cuándo                                                          |
+| ------- | --------------------------------------------------------------- |
+| `422`   | `SELECTION_INVALID` — opción inexistente o indicador sin responder |
+| `422`   | `REQUEST_INVALID` — el cuerpo no cumple el contrato               |
+| `409`   | `DB_CONSTRAINT` — una regla del esquema lo rechaza                |
+| `500`   | `CONFIG_INVALID` — la configuración guardada es incoherente       |
+| `503`   | `DB_UNAVAILABLE` — Supabase no responde                           |
+
+**Las rutas son síncronas (`def`, no `async def`).** psycopg en modo asíncrono
+necesita `add_reader` sobre sockets, y el `ProactorEventLoop` con el que Windows
+arranca asyncio no lo implementa: el pool no llega a abrir ni una conexión en
+local, y el arreglo hay que aplicarlo antes de que uvicorn cree el bucle, es
+decir, fuera de este código. Con rutas `def` FastAPI las ejecuta en su threadpool,
+la concurrencia sigue siendo real, y funciona igual en Windows, en Linux y bajo
+pytest. Para un dashboard de un solo usuario cuyo cuello de botella es la latencia
+hasta Supabase, la diferencia frente a async es inmedible.
 
 ---
 
@@ -207,11 +282,26 @@ Ambos son idempotentes. Comprobar después con `select * from v_config_health;`.
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 uvicorn app.main:app --reload
 ```
 
 Disponible en `http://localhost:8000` · documentación interactiva en `/docs`.
+
+El arranque **espera a tener conexión** con la base de datos. Si las credenciales
+están mal, falla ahí y no en la primera petición del trader.
+
+Tests:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Los del motor son puros y no necesitan nada. Los de la API hablan con la base de
+datos real —las reglas de peso, solape y coherencia **viven en el esquema**, y un
+mock las daría todas por buenas— y se saltan solos si no hay `.env`. Todo lo que
+escriben usa el símbolo `ZZTEST` y se borra al terminar.
 
 ### Frontend
 
@@ -257,7 +347,7 @@ sistema calcula el balance. No se detecta nada automáticamente todavía.
 - [ ] Formulario de evaluación pre-trade (se guarda **antes** de conocer el resultado)
 - [ ] Gestión de riesgo — R:B, tamaño de posición, pérdida máxima
 - [ ] Configuración — edición de pesos y umbrales sin tocar código
-- [ ] Backend con endpoints mockados
+- [x] Backend con endpoints reales contra Supabase (ver [API](#api))
 
 **No se construye en esta fase:** detección automática de divergencias o patrones,
 integración con Kiyotaka, panel SDCA e indicadores on-chain, integración con Bybit,
@@ -305,7 +395,7 @@ Orden de entrega acordado:
 1. [x] Estructura de carpetas, `.gitignore`, `.env.example`, README
 2. [x] Esquema SQL de la base de datos — ver [backend/sql/README.md](backend/sql/README.md)
 3. [x] Backend: motor de decisión (función pura) + tests — `app/scoring/`, 41 tests
-4. [ ] Backend: endpoints FastAPI
+4. [x] Backend: endpoints FastAPI — `app/api/`, 33 tests contra la BD real
 5. [ ] Frontend: setup de Vite + Tailwind + estructura de componentes
 6. [ ] Frontend: formulario de evaluación de setup
 7. [ ] Frontend: Decision Panel + Confluence Score + Permission Panel

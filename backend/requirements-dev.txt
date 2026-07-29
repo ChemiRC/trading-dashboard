@@ -2,3 +2,9 @@
 # El motor de decisión (app/scoring) no depende de nada fuera de la librería
 # estándar: eso es intencionado y hay un test que lo comprueba.
 pytest==8.3.4
+
+# Cliente HTTP que usa TestClient en tests/test_api.py. Esos tests necesitan
+# además requirements.txt y una base de datos alcanzable; si falta cualquiera
+# de las dos cosas se saltan solos en vez de fallar, y los del motor siguen
+# corriendo con pytest y nada más.
+httpx2==2.9.1

@@ -1,0 +1,17 @@
+# Dependencias de ejecución del backend.
+#
+# El motor de decisión (app/scoring) NO usa ninguna de estas: es stdlib pura y
+# hay un test que lo comprueba. Todo lo de aquí es la cáscara que lo rodea
+# —HTTP, validación y acceso a PostgreSQL— y por eso se puede cambiar sin
+# tocar la lógica de negocio.
+
+fastapi==0.140.13
+uvicorn[standard]==0.51.0
+
+# Contratos de entrada y salida, y lectura de variables de entorno.
+pydantic==2.13.4
+pydantic-settings==2.14.2
+
+# Driver de PostgreSQL. `binary` evita necesitar compilador en Windows;
+# `pool` es el pool de conexiones asíncrono.
+psycopg[binary,pool]==3.2.3
