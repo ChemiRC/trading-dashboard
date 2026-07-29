@@ -19,44 +19,91 @@ se vean atractivos. Su trabajo es cuestionar el sesgo del trader, no confirmarlo
 ## Modelo de decisión
 
 La estrategia se basa en **confluencias**: ningún indicador por sí solo justifica una
-entrada. Cada indicador aporta puntos y la suma produce un score de 0 a 100.
+entrada.
 
-| Indicador                | Peso inicial |
-| ------------------------ | ------------ |
-| Divergencia RSI (1H/4H)  | 30           |
-| Tendencia semanal        | 20           |
-| Liquidez                 | 15           |
-| Soporte / Resistencia    | 15           |
-| Patrones gráficos        | 10           |
-| Barreras Kiyotaka        | 10           |
-| **Total**                | **100**      |
+El resultado **no** es un score de 0 a 100. Es un **balance con signo de -100 a +100**:
 
-Clasificación del score:
+| Balance      | Significado                          |
+| ------------ | ------------------------------------ |
+| **Positivo** | candidato **LONG**                   |
+| **Negativo** | candidato **SHORT**                  |
+| Valor absoluto | la **fuerza** de la señal          |
 
-| Score  | Lectura                |
-| ------ | ---------------------- |
-| 90–100 | Operación muy fuerte   |
-| 70–89  | Buena oportunidad      |
-| 50–69  | Confianza media        |
-| < 50   | **NO OPERAR**          |
+Cada indicador aporta un valor **con signo** según su propia lectura: lo que se ve
+alcista suma, lo que se ve bajista resta. El balance es la suma con signo de todas las
+aportaciones.
 
-> Pesos y umbrales **viven en la base de datos**, no en el código. Se editan desde la
-> pantalla de configuración. Añadir un indicador nuevo debe ser insertar una fila,
+> **La dirección no la elige el usuario.** El formulario nunca pregunta LONG o SHORT.
+> El trader solo describe lo que ve en el gráfico; la dirección la deduce el motor del
+> signo del balance.
+
+### Catálogo de aportaciones
+
+| # | Indicador                     | Peso | Opción                                              | Puntos |
+| - | ----------------------------- | ---- | --------------------------------------------------- | ------ |
+| 1 | **Divergencia RSI** *(1H/4H)* | 30   | divergencia regular alcista                          | **+30** |
+|   |                               |      | divergencia oculta alcista                           | **+10** |
+|   |                               |      | sin divergencia                                      | *ver Regla A* |
+|   |                               |      | divergencia oculta bajista                           | **−10** |
+|   |                               |      | divergencia regular bajista                          | **−30** |
+| 2 | **Tendencia semanal**         | 20   | alcista                                              | **+20** |
+|   | *(no existe estado neutral)*  |      | bajista                                              | **−20** |
+| 3 | **Soporte / Resistencia**     | 15   | precio cerca de soporte                              | **+15** |
+|   |                               |      | precio lejos de cualquier zona                       | 0 |
+|   |                               |      | precio cerca de resistencia                          | **−15** |
+| 4 | **Liquidez**                  | 15   | barrida la liquidez inferior *(reversión al alza)*   | **+15** |
+|   |                               |      | sin barrido                                          | 0 |
+|   |                               |      | barrida la liquidez superior *(reversión a la baja)* | **−15** |
+| 5 | **Patrones gráficos**         | 10   | patrón alcista *(bull flag, doble piso, HCH inv.)*   | **+10** |
+|   |                               |      | sin patrón                                           | 0 |
+|   |                               |      | patrón bajista *(bear flag, doble techo, HCH)*       | **−10** |
+| 6 | **Barreras Kiyotaka**         | 10   | barrera compradora fuerte *(soporta el precio)*      | **+10** |
+|   |                               |      | sin barrera relevante                                | 0 |
+|   |                               |      | barrera vendedora fuerte *(frena el precio)*         | **−10** |
+
+Máximo teórico: **+100** (todo alcista) / **−100** (todo bajista).
+
+### Clasificación
+
+Se aplica sobre el **valor absoluto** del balance. La dirección sale del signo; la
+clasificación, de la magnitud.
+
+| \|Balance\| | Lectura              |
+| ----------- | -------------------- |
+| 90–100      | Operación muy fuerte |
+| 70–89       | Buena oportunidad    |
+| 50–69       | Confianza media      |
+| 0–49        | **NO OPERAR**        |
+
+### Las dos reglas que no son indicadores
+
+Están implementadas como **condiciones explícitas del motor**, no como umbrales.
+
+**REGLA A — Puerta de entrada.**
+Si la divergencia RSI es *sin divergencia*, el resultado es **NO TRADE inmediato**.
+No se calcula balance ni se evalúa nada más. El trader no busca operaciones sin
+divergencia: es su disparador obligatorio.
+
+**REGLA B — Contradicción entre disparador y evidencia.**
+Si el signo del balance final contradice el signo de la divergencia (por ejemplo,
+divergencia alcista +30 pero balance total −40), el resultado es **NO TRADE**. El
+disparador apunta a un lado y la evidencia al otro: es justamente el caso en el que
+hay que quedarse fuera.
+
+> ⚠️ La Regla B está **pendiente de confirmación final con el trader** y podría cambiar.
+> Está aislada en el código y en el esquema para poder retirarla sin tocar nada más.
+
+> Pesos, opciones y umbrales **viven en la base de datos**, no en el código. Se editan
+> desde la pantalla de configuración. Añadir un indicador nuevo debe ser insertar filas,
 > no editar y redesplegar código.
 
-Semántica de cada indicador:
+### Pendiente de confirmar con el trader
 
-- **Divergencia RSI** — disparador principal. Sin divergencia, normalmente no hay operación.
-- **Tendencia semanal** — alcista / bajista / neutral. Define si se opera a favor o en
-  contra del macro.
-- **Liquidez** — si ya se barrió liquidez superior o inferior, aumenta la probabilidad
-  de reversión.
-- **Soporte / Resistencia** — cuanto más cerca esté el precio de una zona clave, más
-  valor aporta.
-- **Patrones gráficos** — bull flag, bear flag, triángulos, doble techo, doble piso,
-  hombro-cabeza-hombro. Son confirmación adicional; no generan entrada por sí solos.
-- **Barreras Kiyotaka** — barreras institucionales en el order book. Barrera vendedora
-  fuerte → sesgo short; barrera compradora fuerte → sesgo long. Aparecen poco, pero pesan.
+- **Catálogo definitivo de patrones gráficos** y si todos valen lo mismo. Ahora mismo
+  hay tres opciones genéricas (alcista / sin patrón / bajista) a ±10. **Los triángulos
+  quedan fuera a propósito**: son ambiguos, pueden resolver hacia arriba o hacia abajo,
+  y meterlos ahora obligaría a inventarles un signo.
+- **Confirmación de la Regla B.**
 
 ---
 
@@ -83,9 +130,9 @@ trading-dashboard/
 │   │   ├── core/          Configuración, lectura de variables de entorno
 │   │   ├── db/            Acceso a PostgreSQL / Supabase
 │   │   ├── models/        Esquemas Pydantic (contratos de entrada y salida)
-│   │   └── scoring/       Motor de scoring — función pura, sin dependencias
-│   ├── sql/               Scripts de creación del esquema
-│   ├── tests/             Tests del motor de scoring
+│   │   └── scoring/       Motor de decisión — función pura, sin dependencias
+│   ├── sql/               Esquema y seed  (001_schema · 002_seed · README)
+│   ├── tests/             Tests del motor de decisión
 │   └── .env.example
 ├── frontend/
 │   ├── public/
@@ -107,10 +154,11 @@ trading-dashboard/
 
 ### Por qué esta separación
 
-- **`scoring/` aislado del resto.** El motor recibe los valores de los indicadores más
-  la configuración de pesos y devuelve el score y su desglose. Nada más: no toca la base
-  de datos, no sabe qué es HTTP. Así se puede testear con una tabla de casos y, en la
-  Fase 5, reusarlo tal cual para hacer backtesting.
+- **`scoring/` aislado del resto.** El motor recibe las opciones elegidas más el
+  catálogo y los umbrales, y devuelve el balance con signo, la dirección deducida, la
+  clasificación y el desglose. Nada más: no toca la base de datos, no sabe qué es HTTP.
+  Así se puede testear con una tabla de casos y, en la Fase 5, reusarlo tal cual para
+  hacer backtesting.
 - **`adapters/` desde el día uno.** Hoy los valores de los indicadores llegan de un
   formulario manual. En fases posteriores llegarán de la API de Bybit o de un detector
   automático. Si todo entra por la misma interfaz, cambiar el origen no obliga a
@@ -141,6 +189,17 @@ Copy-Item frontend\.env.example frontend\.env
 
 Después rellena `backend/.env` con las credenciales de Supabase.
 `frontend/.env` solo necesita la URL del backend.
+
+### Base de datos
+
+En el SQL Editor de Supabase, ejecutar **en este orden**:
+
+```
+backend/sql/001_schema.sql    tablas, triggers, vistas, RLS
+backend/sql/002_seed.sql      catálogo de indicadores, opciones y umbrales
+```
+
+Ambos son idempotentes. Comprobar después con `select * from v_config_health;`.
 
 ### Backend
 
@@ -188,13 +247,13 @@ inmediatamente. Borrarla del repositorio no basta, queda en el historial de git.
 ## Alcance de la Fase 1
 
 Todos los inputs de indicadores son **manuales**: el trader rellena un formulario y el
-sistema calcula el score. No se detecta nada automáticamente todavía.
+sistema calcula el balance. No se detecta nada automáticamente todavía.
 
 **Se construye:**
 
-- [ ] Decision Panel — LONG / SHORT / NO TRADE con el score visible
-- [ ] Confluence Score — desglose de la aportación de cada indicador
-- [ ] Permission Panel — clasificación derivada del score
+- [ ] Decision Panel — LONG / SHORT / NO TRADE con el balance visible
+- [ ] Confluence Score — desglose de la aportación con signo de cada indicador
+- [ ] Permission Panel — clasificación derivada del valor absoluto del balance
 - [ ] Formulario de evaluación pre-trade (se guarda **antes** de conocer el resultado)
 - [ ] Gestión de riesgo — R:B, tamaño de posición, pérdida máxima
 - [ ] Configuración — edición de pesos y umbrales sin tocar código
@@ -209,7 +268,10 @@ multi-usuario o login.
 El formulario pre-trade se registra **antes** de que la operación se cierre. Es la
 decisión de diseño más importante del proyecto: si se evalúa un setup sabiendo que ganó,
 se recuerda como bueno; si perdió, como malo. Guardarlo antes convierte la evaluación en
-un dato honesto y hace posible medir después si el score realmente predice algo.
+un dato honesto y hace posible medir después si el balance realmente predice algo.
+
+Por el mismo motivo, cada setup guarda **congelados** los puntos que se aplicaron ese
+día. Si más adelante se cambian los pesos, los setups antiguos no se reescriben.
 
 ---
 
@@ -226,10 +288,13 @@ un dato honesto y hace posible medir después si el score realmente predice algo
 
 Decisiones tomadas hoy que hacen posibles esas fases:
 
-- Pesos, umbrales y lista de indicadores en tablas, no en el código.
-- La tabla de setups tiene un campo de resultado **nullable**, para enlazarlo en la
-  Fase 2 con la operación real traída de Bybit.
-- El motor de scoring es una función pura, reutilizable en el backtesting de la Fase 5.
+- Pesos, opciones, umbrales y lista de indicadores en tablas, no en el código.
+- El enlace setup ↔ operación real de Bybit es **nullable** (`trades.setup_id`), y
+  admite los tres casos: setup sin operar, setup ejecutado, y operación improvisada
+  sin setup previo.
+- Cada setup guarda una foto congelada de los puntos aplicados: el histórico es
+  comparable entre meses aunque cambie la configuración.
+- El motor de decisión es una función pura, reutilizable en el backtesting de la Fase 5.
 
 ---
 
@@ -238,8 +303,8 @@ Decisiones tomadas hoy que hacen posibles esas fases:
 Orden de entrega acordado:
 
 1. [x] Estructura de carpetas, `.gitignore`, `.env.example`, README
-2. [ ] Esquema SQL de la base de datos
-3. [ ] Backend: motor de scoring (función pura) + tests
+2. [x] Esquema SQL de la base de datos — ver [backend/sql/README.md](backend/sql/README.md)
+3. [x] Backend: motor de decisión (función pura) + tests — `app/scoring/`, 41 tests
 4. [ ] Backend: endpoints FastAPI
 5. [ ] Frontend: setup de Vite + Tailwind + estructura de componentes
 6. [ ] Frontend: formulario de evaluación de setup
