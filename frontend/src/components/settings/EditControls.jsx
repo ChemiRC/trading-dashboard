@@ -1,3 +1,5 @@
+import { useTimedReveal } from "../../hooks/useTimedReveal.js";
+
 /**
  * Piezas compartidas por las dos secciones editables.
  *
@@ -48,12 +50,19 @@ export function CampoTexto({ etiqueta, valor, onChange, className = "flex-1 min-
  * triggers del esquema explican el caso concreto ("ya tiene una opcion de 30
  * puntos absolutos") y sustituirlo por un "valor no válido" genérico tiraría
  * a la basura justo la parte que le sirve al trader para arreglarlo.
+ *
+ * El "✓ Guardado" es temporal a propósito -- aparece y se apaga solo a los
+ * dos segundos, nunca se queda indefinido -- para que quede claro que
+ * describe el último guardado y no un estado permanente de la fila. Lo demás
+ * (el botón, el error) sí que se queda mientras siga siendo cierto.
  */
 export function BarraGuardado({ sucio, invalido, estado, error, onGuardar, onDescartar }) {
+  const faseGuardado = useTimedReveal(!sucio && estado === "guardado");
+
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
       {sucio && (
-        <>
+        <span className="animate-fade-in inline-flex items-center gap-3">
           <button
             type="button"
             onClick={onGuardar}
@@ -69,17 +78,27 @@ export function BarraGuardado({ sucio, invalido, estado, error, onGuardar, onDes
           >
             Descartar
           </button>
-        </>
+        </span>
       )}
 
-      {invalido && <span className="text-xs text-short">Tiene que ser un número entero.</span>}
+      {invalido && (
+        <span className="animate-fade-in text-xs text-short">
+          Tiene que ser un número entero.
+        </span>
+      )}
 
-      {!sucio && estado === "guardado" && (
-        <span className="text-xs text-long">✓ Guardado</span>
+      {faseGuardado !== "oculto" && (
+        <span
+          className={`text-xs text-long transition-opacity duration-300 ${
+            faseGuardado === "saliendo" ? "opacity-0" : "opacity-100"
+          }`}
+        >
+          ✓ Guardado
+        </span>
       )}
 
       {error && (
-        <p className="w-full text-xs leading-relaxed text-short">
+        <p className="animate-fade-in w-full text-xs leading-relaxed text-short">
           <span className="text-ink-faint">{error.code}</span> · {error.message}
         </p>
       )}

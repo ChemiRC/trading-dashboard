@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { listSetups } from "../api/setups.js";
 import SetupList from "../components/history/SetupList.jsx";
+import Spinner from "../components/ui/Spinner.jsx";
 
 /**
  * Histórico de setups guardados, del más reciente al más antiguo.
@@ -10,9 +11,31 @@ import SetupList from "../components/history/SetupList.jsx";
  * solo se van acumulando páginas. Los filtros combinados (símbolo, decisión,
  * rango de balance) son de la Fase 4 -- `listSetups` ya acepta `symbol`, así
  * que añadirlos será pasar parámetros, no reestructurar esta pantalla.
+ *
+ * El orden por columna, en cambio, es puramente del cliente: reordena lo que
+ * ya está en memoria, nunca vuelve a pedir al backend. Por eso el máximo
+ * ordenable es "lo que ya se cargó" -- coherente con que "Cargar más" siga
+ * siendo la única forma de traer más filas.
  */
 
 const LIMITE = 20;
+
+function comparar(a, b, campo) {
+  const va = a[campo];
+  const vb = b[campo];
+
+  // Los huecos (sin balance, sin clasificar, sin resultado) siempre al
+  // final, sea cual sea el sentido del orden: un "—" no es ni el mayor ni el
+  // menor valor real, así que no debería saltar arriba solo por invertir.
+  if (va == null && vb == null) return 0;
+  if (va == null) return 1;
+  if (vb == null) return -1;
+
+  if (typeof va === "number" || typeof vb === "number") {
+    return Number(va) - Number(vb);
+  }
+  return String(va).localeCompare(String(vb));
+}
 
 export default function SetupHistory() {
   const [items, setItems] = useState([]);
@@ -20,6 +43,8 @@ export default function SetupHistory() {
   const [estado, setEstado] = useState("cargando"); // cargando | ok | error | cargando-mas
   const [error, setError] = useState(null);
   const [abiertoId, setAbiertoId] = useState(null);
+  const [ordenPor, setOrdenPor] = useState("evaluated_at");
+  const [ordenAsc, setOrdenAsc] = useState(false);
 
   useEffect(() => {
     const controlador = new AbortController();
@@ -53,6 +78,22 @@ export default function SetupHistory() {
     }
   }
 
+  function ordenar(campo) {
+    if (campo === ordenPor) {
+      setOrdenAsc((prev) => !prev);
+    } else {
+      setOrdenPor(campo);
+      // Fecha y balance se leen mejor empezando por el extremo alto
+      // (lo más reciente, lo más fuerte); el resto, alfabético ascendente.
+      setOrdenAsc(campo !== "evaluated_at" && campo !== "raw_balance");
+    }
+  }
+
+  const itemsOrdenados = useMemo(() => {
+    const copia = [...items].sort((a, b) => comparar(a, b, ordenPor));
+    return ordenAsc ? copia : copia.reverse();
+  }, [items, ordenPor, ordenAsc]);
+
   const hayMas = total !== null && items.length < total;
 
   return (
@@ -77,7 +118,7 @@ export default function SetupHistory() {
         )}
 
         {estado === "error" && (
-          <section className="rounded-lg border border-short/40 bg-short-deep/30 overflow-hidden">
+          <section className="animate-fade-in rounded-lg border border-short/40 bg-short-deep/30 overflow-hidden">
             <h2 className="border-b border-short/30 px-4 py-2.5 text-xs uppercase tracking-widest text-short">
               No se pudo cargar el histórico
             </h2>
@@ -104,9 +145,12 @@ export default function SetupHistory() {
               Setups guardados
             </h2>
             <SetupList
-              items={items}
+              items={itemsOrdenados}
               abiertoId={abiertoId}
               onToggle={(id) => setAbiertoId((prev) => (prev === id ? null : id))}
+              ordenPor={ordenPor}
+              ordenAsc={ordenAsc}
+              onOrdenar={ordenar}
               onActualizado={(detalle) =>
                 // El detalle devuelto por el registro trae el outcome nuevo; la
                 // fila de la lista se actualiza sin recargar la página entera.
@@ -130,8 +174,9 @@ export default function SetupHistory() {
                   type="button"
                   onClick={cargarMas}
                   disabled={estado === "cargando-mas"}
-                  className="rounded border border-line px-4 py-2 text-sm text-ink-dim transition-colors hover:border-ink-faint hover:text-ink disabled:cursor-not-allowed disabled:text-ink-faint"
+                  className="flex items-center gap-2 rounded border border-line px-4 py-2 text-sm text-ink-dim transition-colors hover:border-ink-faint hover:text-ink disabled:cursor-not-allowed disabled:text-ink-faint"
                 >
+                  {estado === "cargando-mas" && <Spinner />}
                   {estado === "cargando-mas"
                     ? "Cargando…"
                     : `Cargar más (${total - items.length} restantes)`}

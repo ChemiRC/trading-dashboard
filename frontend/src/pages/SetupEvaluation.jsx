@@ -24,6 +24,19 @@ export default function SetupEvaluation({ irA }) {
 
   const { status, evaluation, error, catalog } = resultado;
 
+  // Mientras `/evaluate` está en vuelo, `EvaluationForm` manda `evaluation:
+  // null` -- no tiene otra cosa que mandar. Aquí se conserva el veredicto
+  // anterior en su lugar: es lo que permite que los tres paneles atenúen el
+  // resultado previo en vez de vaciarse a un "Evaluando…" en blanco. Sin
+  // esto, cada tecleo parpadearía a un estado vacío y luego al resultado, en
+  // vez de sentirse como "recalculando sobre lo que ya había".
+  function manejarResultado(nuevo) {
+    setResultado((prev) => ({
+      ...nuevo,
+      evaluation: nuevo.status === "cargando" ? prev.evaluation : nuevo.evaluation,
+    }));
+  }
+
   return (
     <div className="min-h-screen bg-base px-6 py-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -34,7 +47,7 @@ export default function SetupEvaluation({ irA }) {
 
         <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
           <EvaluationForm
-            onResult={setResultado}
+            onResult={manejarResultado}
             onVerHistorico={irA ? () => irA("historico") : undefined}
           />
 

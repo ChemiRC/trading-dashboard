@@ -1,4 +1,6 @@
-import { conSigno, tono } from "../../lib/format.js";
+import AnimatedNumber from "../ui/AnimatedNumber.jsx";
+import Spinner from "../ui/Spinner.jsx";
+import { conSigno } from "../../lib/format.js";
 
 /**
  * Veredicto principal: decisión, dirección deducida, balance con signo y la
@@ -25,11 +27,24 @@ function colorDireccion(direction) {
   return "text-flat";
 }
 
+function colorBalance(n) {
+  if (n > 0) return "text-long";
+  if (n < 0) return "text-short";
+  return "text-flat";
+}
+
 /**
  * Barra divergente centrada en 0. Crece a la derecha (verde) si el balance es
  * positivo, a la izquierda (rojo) si es negativo. Dentro de -5..+5 -- o sin
  * balance todavía, bajo la Regla A -- se pinta neutral: ahí no hay
  * convicción que mostrar.
+ *
+ * Los dos rellenos (long/short) se pintan SIEMPRE, con ancho 0 cuando no
+ * aplican, en vez de montarse y desmontarse condicionalmente. Es lo que
+ * permite animar la transición: si el div del lado LONG desapareciera del DOM
+ * al pasar a SHORT, no habría nada que el navegador pudiera interpolar -- el
+ * cambio de ancho de 0% a X% sobre el MISMO elemento sí se anima, como el
+ * movimiento de una aguja entre dos lecturas.
  */
 function BalanceBar({ rawBalance, maxAbsBalance }) {
   const max = maxAbsBalance || 100;
@@ -37,29 +52,27 @@ function BalanceBar({ rawBalance, maxAbsBalance }) {
   const clamped = esNulo ? 0 : Math.max(-max, Math.min(max, rawBalance));
   const esNeutral = esNulo || Math.abs(clamped) <= 5;
   const esLong = !esNeutral && clamped > 0;
-  const anchoMitad = (Math.abs(clamped) / max) * 50;
+  const anchoMitad = esNeutral ? 0 : (Math.abs(clamped) / max) * 50;
 
   return (
     <div>
       <div className="relative h-6 overflow-hidden rounded bg-raised">
         {/* Línea base en 0: separa el lado LONG del lado SHORT. */}
-        <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-base" />
+        <div className="absolute inset-y-0 left-1/2 z-10 w-0.5 -translate-x-1/2 bg-base" />
 
-        {!esNeutral && esLong && (
-          <div
-            className="absolute inset-y-0 left-1/2 rounded-r-[4px] bg-long"
-            style={{ width: `${anchoMitad}%` }}
-          />
-        )}
-        {!esNeutral && !esLong && (
-          <div
-            className="absolute inset-y-0 right-1/2 rounded-l-[4px] bg-short"
-            style={{ width: `${anchoMitad}%` }}
-          />
-        )}
-        {esNeutral && !esNulo && (
-          <div className="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 rounded-full bg-flat" />
-        )}
+        <div
+          className="absolute inset-y-0 left-1/2 rounded-r-[4px] bg-long transition-[width] duration-300 ease-out"
+          style={{ width: `${esLong ? anchoMitad : 0}%` }}
+        />
+        <div
+          className="absolute inset-y-0 right-1/2 rounded-l-[4px] bg-short transition-[width] duration-300 ease-out"
+          style={{ width: `${!esLong && !esNeutral ? anchoMitad : 0}%` }}
+        />
+        <div
+          className={`absolute inset-y-0 left-1/2 w-2 -translate-x-1/2 rounded-full bg-flat transition-opacity duration-300 ${
+            esNeutral && !esNulo ? "opacity-100" : "opacity-0"
+          }`}
+        />
       </div>
 
       <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-ink-faint">
@@ -72,14 +85,24 @@ function BalanceBar({ rawBalance, maxAbsBalance }) {
 }
 
 export default function DecisionPanel({ status, evaluation, error, maxAbsBalance }) {
+  const cargando = status === "cargando";
+  const esNoTrade = evaluation?.decision === "NO_TRADE";
+
   return (
-    <section className="rounded-lg border border-line bg-surface overflow-hidden">
-      <h2 className="border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
+    <section
+      className={`rounded-lg border overflow-hidden transition-colors duration-300 ${
+        status === "ok" && esNoTrade
+          ? "border-flat/40 bg-flat/5"
+          : "border-line bg-surface"
+      }`}
+    >
+      <h2 className="flex items-center justify-between border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
         Decisión
+        {cargando && evaluation && <Spinner />}
       </h2>
 
       {status === "error" && (
-        <div className="space-y-2 px-5 py-5">
+        <div className="animate-fade-in space-y-2 px-5 py-5">
           <div className="text-short">{error?.code}</div>
           <div className="text-ink">{error?.message}</div>
         </div>
@@ -91,15 +114,19 @@ export default function DecisionPanel({ status, evaluation, error, maxAbsBalance
         </div>
       )}
 
-      {status === "cargando" && (
+      {cargando && !evaluation && (
         <div className="animate-pulse px-5 py-8 text-ink-dim">Evaluando…</div>
       )}
 
-      {status === "ok" && evaluation && (
-        <div className="px-5 py-5">
+      {(status === "ok" || cargando) && evaluation && (
+        <div
+          className={`px-5 py-5 transition-opacity duration-200 ${
+            cargando ? "opacity-50" : "opacity-100"
+          }`}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span
-              className={`inline-flex items-center rounded border px-3 py-1 text-sm uppercase tracking-widest ${
+              className={`inline-flex items-center rounded border px-3 py-1 text-sm uppercase tracking-widest transition-colors duration-300 ${
                 CLASE_PILDORA[evaluation.decision] ?? CLASE_PILDORA.NO_TRADE
               }`}
             >
@@ -113,13 +140,12 @@ export default function DecisionPanel({ status, evaluation, error, maxAbsBalance
             </span>
           </div>
 
-          <div
-            className={`mt-4 text-6xl leading-none tabular-nums ${
-              evaluation.raw_balance == null ? "text-flat" : tono(evaluation.raw_balance)
-            }`}
-          >
-            {evaluation.raw_balance == null ? "—" : conSigno(evaluation.raw_balance)}
-          </div>
+          <AnimatedNumber
+            valor={evaluation.raw_balance}
+            formatear={(n) => conSigno(Math.round(n))}
+            claseColor={colorBalance}
+            className="mt-4 block text-6xl leading-none tabular-nums"
+          />
 
           <div className="mt-6">
             <BalanceBar rawBalance={evaluation.raw_balance} maxAbsBalance={maxAbsBalance} />

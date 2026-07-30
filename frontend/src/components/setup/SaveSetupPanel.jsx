@@ -1,6 +1,8 @@
 import { useState } from "react";
 
 import { createSetup } from "../../api/setups.js";
+import Spinner from "../ui/Spinner.jsx";
+import { toast } from "../ui/Toast.jsx";
 
 /**
  * Guardado del setup en el histórico.
@@ -40,13 +42,9 @@ export default function SaveSetupPanel({ selections, completo, decision, onVerHi
   const [campos, setCampos] = useState(VACIO);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
-  const [guardado, setGuardado] = useState(null);
 
   function set(campo, valor) {
     setCampos((prev) => ({ ...prev, [campo]: valor }));
-    // Un cambio después de guardar significa que viene otro setup: la
-    // confirmación anterior deja de describir lo que hay en pantalla.
-    setGuardado(null);
     setError(null);
   }
 
@@ -72,7 +70,6 @@ export default function SaveSetupPanel({ selections, completo, decision, onVerHi
   async function guardar() {
     setGuardando(true);
     setError(null);
-    setGuardado(null);
 
     try {
       const cuerpo = {
@@ -84,7 +81,16 @@ export default function SaveSetupPanel({ selections, completo, decision, onVerHi
       if (notes) cuerpo.notes = notes;
 
       const creado = await createSetup(cuerpo);
-      setGuardado(creado);
+      // Confirmación como toast, no como texto fijo en el panel: es un aviso
+      // de "esto acaba de pasar", no un dato que deba seguir ocupando sitio
+      // en pantalla. El enlace al histórico viaja dentro del propio toast,
+      // vivo mientras el toast esté en pantalla.
+      toast(
+        `Setup guardado · ${creado.symbol}${creado.timeframe ? ` ${creado.timeframe}` : ""} · ${
+          creado.decision === "NO_TRADE" ? "NO TRADE" : creado.decision
+        }`,
+        onVerHistorico ? { accion: { label: "Ver en el histórico", onClick: onVerHistorico } } : undefined,
+      );
       // El símbolo y la temporalidad se conservan —lo normal es encadenar
       // varias evaluaciones del mismo instrumento— y se limpian el precio y
       // las notas, que son de este setup y solo de este. De paso, obliga a
@@ -165,17 +171,19 @@ export default function SaveSetupPanel({ selections, completo, decision, onVerHi
             type="button"
             onClick={guardar}
             disabled={!puedeGuardar}
-            className="rounded border border-ink bg-raised px-4 py-2 text-sm text-ink transition-colors hover:bg-line disabled:cursor-not-allowed disabled:border-line disabled:bg-transparent disabled:text-ink-faint"
+            className="rounded border border-ink bg-raised px-4 py-2 text-sm text-ink transition-all duration-150 hover:bg-line active:scale-[0.98] disabled:cursor-not-allowed disabled:border-line disabled:bg-transparent disabled:text-ink-faint"
           >
-            {guardando ? "Guardando…" : "Guardar setup"}
+            {guardando ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner className="border-ink-faint border-t-ink" />
+                Guardando…
+              </span>
+            ) : (
+              "Guardar setup"
+            )}
           </button>
 
-          {/* Tras un guardado correcto el aviso se calla: el precio y las notas
-              se acaban de limpiar a propósito, y decir "falta el precio" justo
-              al lado de "✓ guardado" se lee como si algo hubiera fallado.
-              Cualquier cambio en un campo descarta la confirmación y lo
-              devuelve. */}
-          {faltan.length > 0 && !guardado && (
+          {faltan.length > 0 && (
             <span className="text-xs text-ink-faint">Falta {faltan.join(", ")}.</span>
           )}
         </div>
@@ -199,34 +207,8 @@ export default function SaveSetupPanel({ selections, completo, decision, onVerHi
           )}
         </p>
 
-        {guardado && (
-          <div className="mt-3 rounded border border-long/40 bg-long-deep/30 px-3 py-2.5">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <span className="text-sm text-long">
-                ✓ Setup guardado ·{" "}
-                {guardado.decision === "NO_TRADE" ? "NO TRADE" : guardado.decision}
-              </span>
-              {onVerHistorico && (
-                <button
-                  type="button"
-                  onClick={onVerHistorico}
-                  className="text-xs text-long underline-offset-2 hover:underline"
-                >
-                  Ver en el histórico →
-                </button>
-              )}
-            </div>
-            <div className="mt-1 text-xs text-ink-dim">
-              {guardado.symbol}
-              {guardado.timeframe ? ` · ${guardado.timeframe}` : ""} ·{" "}
-              <code className="text-ink-faint">{String(guardado.id).slice(0, 8)}</code> ·{" "}
-              {new Date(guardado.evaluated_at).toLocaleString("es-ES")}
-            </div>
-          </div>
-        )}
-
         {error && (
-          <div className="mt-3 rounded border border-short/40 bg-short-deep/30 px-3 py-2.5">
+          <div className="animate-fade-in mt-3 rounded border border-short/40 bg-short-deep/30 px-3 py-2.5">
             <div className="text-xs text-short">{error.code}</div>
             <div className="mt-0.5 text-sm leading-relaxed text-ink">{error.message}</div>
           </div>

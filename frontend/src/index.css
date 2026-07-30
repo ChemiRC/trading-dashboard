@@ -52,6 +52,36 @@
      remotas, sin petición de red que pueda fallar ni CDN de terceros. */
   --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", "SF Mono",
     "Segoe UI Mono", Consolas, "Liberation Mono", Menlo, monospace;
+
+  /* --- Animación ---
+     Rápidas y funcionales, no juguetonas: una terminal de trading no hace
+     rebotes. `--animate-*` es la sintaxis de Tailwind v4 para generar
+     utilidades (`animate-fade-in`) a partir de un `@keyframes` de aquí abajo
+     -- mismo mecanismo que ya usan los tokens de color, ahora para tiempo. */
+  --animate-fade-in: fade-in 200ms ease-out both;
+  --animate-flash: flash 700ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Barrido breve para señalar "esta fila cambió" sin dejar rastro permanente:
+   un tinte de fondo que entra y se disuelve solo, nunca un color que se queda. */
+@keyframes flash {
+  0% {
+    background-color: color-mix(in srgb, var(--color-cls-medium) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 @layer base {

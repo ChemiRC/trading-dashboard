@@ -199,7 +199,7 @@ function DeleteSection({ setup, onBorrado }) {
       )}
 
       {confirmando && (
-        <div className="rounded border border-short/40 bg-short-deep/20 px-3 py-2.5">
+        <div className="animate-fade-in rounded border border-short/40 bg-short-deep/20 px-3 py-2.5">
           <p className="text-sm leading-relaxed text-ink">
             ¿Borrar este setup? Se va con su desglose
             {setup.outcome ? " y su resultado registrado" : ""}, y no se puede
@@ -231,7 +231,7 @@ function DeleteSection({ setup, onBorrado }) {
       )}
 
       {error && (
-        <div className="mt-2 rounded border border-short/40 bg-short-deep/30 px-3 py-2">
+        <div className="animate-fade-in mt-2 rounded border border-short/40 bg-short-deep/30 px-3 py-2">
           <div className="text-xs text-short">{error.code}</div>
           <div className="mt-0.5 text-sm leading-relaxed text-ink">{error.message}</div>
         </div>
@@ -454,7 +454,7 @@ function ResultForm({ setup, onGuardado, onCancelar }) {
       </div>
 
       {error && (
-        <div className="mt-3 rounded border border-short/40 bg-short-deep/30 px-3 py-2">
+        <div className="animate-fade-in mt-3 rounded border border-short/40 bg-short-deep/30 px-3 py-2">
           <div className="text-xs text-short">{error.code}</div>
           <div className="mt-0.5 text-sm leading-relaxed text-ink">{error.message}</div>
         </div>

@@ -1,3 +1,5 @@
+import Spinner from "../ui/Spinner.jsx";
+
 /**
  * Clasificación derivada del valor absoluto del balance, y por qué el motivo
  * es NO_TRADE cuando lo es.
@@ -41,7 +43,7 @@ function PermissionBody({ evaluation, thresholds }) {
       )}
 
       {evaluation.decision === "NO_TRADE" && evaluation.no_trade_reason && (
-        <div className="rounded border border-line bg-raised px-3 py-3">
+        <div className="animate-fade-in rounded border border-line bg-raised px-3 py-3">
           <div className="text-[10px] uppercase tracking-wider text-ink-faint">
             {ETIQUETA_MOTIVO[evaluation.no_trade_reason] ?? evaluation.no_trade_reason}
           </div>
@@ -55,14 +57,17 @@ function PermissionBody({ evaluation, thresholds }) {
 }
 
 export default function PermissionPanel({ status, evaluation, error, thresholds }) {
+  const cargando = status === "cargando";
+
   return (
     <section className="rounded-lg border border-line bg-surface overflow-hidden">
-      <h2 className="border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
+      <h2 className="flex items-center justify-between border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
         Permission Panel
+        {cargando && evaluation && <Spinner />}
       </h2>
 
       {status === "error" && (
-        <div className="px-4 py-4 text-ink-dim">
+        <div className="animate-fade-in px-4 py-4 text-ink-dim">
           {error?.message ?? "No se puede clasificar."}
         </div>
       )}
@@ -73,12 +78,14 @@ export default function PermissionPanel({ status, evaluation, error, thresholds 
         </div>
       )}
 
-      {status === "cargando" && (
+      {cargando && !evaluation && (
         <div className="animate-pulse px-4 py-6 text-ink-dim">Clasificando…</div>
       )}
 
-      {status === "ok" && evaluation && (
-        <PermissionBody evaluation={evaluation} thresholds={thresholds} />
+      {(status === "ok" || cargando) && evaluation && (
+        <div className={`transition-opacity duration-200 ${cargando ? "opacity-50" : "opacity-100"}`}>
+          <PermissionBody evaluation={evaluation} thresholds={thresholds} />
+        </div>
       )}
     </section>
   );

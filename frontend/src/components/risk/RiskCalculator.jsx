@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { formatNumber, formatQuantity } from "../../lib/format.js";
 import { calculateAtrRatio, calculateRisk } from "../../lib/risk.js";
+import AnimatedNumber from "../ui/AnimatedNumber.jsx";
 
 /**
  * Gestión de riesgo: cuánto se puede perder y cuántas unidades comprar,
@@ -60,11 +61,13 @@ function CampoNumerico({ etiqueta, valor, onChange, error, opcional }) {
         placeholder="0"
         value={valor}
         onChange={(e) => onChange(e.target.value)}
-        className={`mt-1 w-full rounded border bg-base px-3 py-2 text-sm text-ink tabular-nums outline-none focus:border-ink-faint ${
+        className={`mt-1 w-full rounded border bg-base px-3 py-2 text-sm text-ink tabular-nums outline-none transition-colors duration-200 focus:border-ink-faint ${
           error ? "border-short/60" : "border-line"
         }`}
       />
-      {error && <span className="mt-1 block text-xs text-short">{error}</span>}
+      {error && (
+        <span className="animate-fade-in mt-1 block text-xs text-short">{error}</span>
+      )}
     </label>
   );
 }
@@ -74,6 +77,47 @@ function Fila({ etiqueta, valor, className = "text-ink" }) {
     <div className="flex items-baseline justify-between gap-4 px-4 py-2 text-sm">
       <span className="text-ink-dim">{etiqueta}</span>
       <span className={`tabular-nums ${className}`}>{valor}</span>
+    </div>
+  );
+}
+
+/** Igual que `Fila`, pero el número tween-ea hacia su valor nuevo en vez de saltar. */
+function FilaAnimada({ etiqueta, valor, formatear, sufijo = "", className = "text-ink" }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 px-4 py-2 text-sm">
+      <span className="text-ink-dim">{etiqueta}</span>
+      <span className={`tabular-nums ${className}`}>
+        <AnimatedNumber valor={valor} formatear={formatear} />
+        {valor != null && sufijo}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * R:B como proporción visual y no solo como número. El segmento rojo es
+ * siempre "1 unidad de riesgo"; el verde son las unidades de beneficio que
+ * le corresponden. Se capa en 5R: pasado ese punto la barra ya no cabe
+ * seguir estirándose y el número de al lado es quien manda.
+ */
+function BarraRiesgoBeneficio({ ratio }) {
+  const clamped = ratio == null ? 0 : Math.min(ratio, 5);
+  const total = 1 + clamped;
+  const pctRiesgo = ratio == null ? 100 : (1 / total) * 100;
+  const pctBeneficio = ratio == null ? 0 : (clamped / total) * 100;
+
+  return (
+    <div className="px-4 pb-3">
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-raised">
+        <div
+          className="h-full bg-short transition-[width] duration-300 ease-out"
+          style={{ width: `${pctRiesgo}%` }}
+        />
+        <div
+          className="h-full bg-long transition-[width] duration-300 ease-out"
+          style={{ width: `${pctBeneficio}%` }}
+        />
+      </div>
     </div>
   );
 }
@@ -168,7 +212,7 @@ export default function RiskCalculator() {
         </h2>
 
         {!sinErrores && (
-          <p className="px-4 py-4 text-sm text-short">
+          <p className="animate-fade-in px-4 py-4 text-sm text-short">
             Corrige los campos marcados en rojo para ver el análisis.
           </p>
         )}
@@ -176,7 +220,7 @@ export default function RiskCalculator() {
         {sinErrores && (
           <>
             {!obligatoriosCompletos && (
-              <p className="px-4 py-3 text-xs text-ink-faint">
+              <p className="animate-fade-in px-4 py-3 text-xs text-ink-faint">
                 Rellena capital, % riesgo, entrada, stop y take profit para completar el
                 análisis. Los resultados que ya se pueden calcular se muestran; el resto
                 queda en "—".
@@ -188,16 +232,20 @@ export default function RiskCalculator() {
               <Fila etiqueta="Take profit" valor={formatNumber(numeros.tp)} />
             </div>
 
-            <div className="divide-y divide-line/60 border-t border-line">
-              <Fila etiqueta="Riesgo (pips)" valor={formatNumber(resultado?.riskDistance ?? null)} />
-              <Fila
-                etiqueta="Beneficio (pips)"
-                valor={formatNumber(resultado?.rewardDistance ?? null)}
-              />
-              <Fila
-                etiqueta="R:R"
-                valor={resultado?.riskRewardRatio == null ? "—" : formatNumber(resultado.riskRewardRatio)}
-              />
+            <div className="border-t border-line">
+              <div className="divide-y divide-line/60">
+                <Fila etiqueta="Riesgo (pips)" valor={formatNumber(resultado?.riskDistance ?? null)} />
+                <Fila
+                  etiqueta="Beneficio (pips)"
+                  valor={formatNumber(resultado?.rewardDistance ?? null)}
+                />
+                <FilaAnimada
+                  etiqueta="R:R"
+                  valor={resultado?.riskRewardRatio ?? null}
+                  formatear={formatNumber}
+                />
+              </div>
+              <BarraRiesgoBeneficio ratio={resultado?.riskRewardRatio ?? null} />
             </div>
 
             <div className="divide-y divide-line/60 border-t border-line">
@@ -206,38 +254,29 @@ export default function RiskCalculator() {
                 etiqueta="% riesgo"
                 valor={numeros.riskPercent === null ? "—" : `${formatNumber(numeros.riskPercent)}%`}
               />
-              <Fila
+              <FilaAnimada
                 etiqueta="Pérdida máxima"
-                valor={resultado ? `${formatNumber(resultado.maxLoss)} USDT` : "—"}
+                valor={resultado?.maxLoss ?? null}
+                formatear={(n) => `${formatNumber(n)} USDT`}
                 className={resultado ? "text-short" : "text-ink"}
               />
-              <Fila
+              <FilaAnimada
                 etiqueta="Beneficio potencial"
-                valor={
-                  resultado?.potentialProfit != null
-                    ? `${formatNumber(resultado.potentialProfit)} USDT`
-                    : "—"
-                }
+                valor={resultado?.potentialProfit ?? null}
+                formatear={(n) => `${formatNumber(n)} USDT`}
                 className={resultado?.potentialProfit != null ? "text-long" : "text-ink"}
               />
-              <Fila
+              <FilaAnimada
                 etiqueta="Tamaño posición"
-                valor={
-                  resultado?.positionSize == null ? "—" : formatQuantity(resultado.positionSize)
-                }
+                valor={resultado?.positionSize ?? null}
+                formatear={formatQuantity}
               />
             </div>
 
             <div className="divide-y divide-line/60 border-t border-line">
               <Fila etiqueta="ATR (opt.)" valor={formatNumber(numeros.atr)} />
-              <Fila
-                etiqueta="Stop vs ATR"
-                valor={atrStopRatio == null ? "—" : `${formatNumber(atrStopRatio)}x`}
-              />
-              <Fila
-                etiqueta="TP vs ATR"
-                valor={atrTpRatio == null ? "—" : `${formatNumber(atrTpRatio)}x`}
-              />
+              <FilaAnimada etiqueta="Stop vs ATR" valor={atrStopRatio} formatear={formatNumber} sufijo="x" />
+              <FilaAnimada etiqueta="TP vs ATR" valor={atrTpRatio} formatear={formatNumber} sufijo="x" />
             </div>
           </>
         )}

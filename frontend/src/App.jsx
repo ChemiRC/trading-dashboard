@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { logout } from "./api/auth.js";
 import { getToken, onSessionLost } from "./api/client.js";
+import ToastHost from "./components/ui/Toast.jsx";
 import Login from "./pages/Login.jsx";
 import RiskCalculation from "./pages/RiskCalculation.jsx";
 import Settings from "./pages/Settings.jsx";
@@ -80,7 +81,15 @@ export default function App() {
           Cerrar sesión
         </button>
       </nav>
-      <Pantalla irA={setActiva} />
+      {/* `key={activa}` fuerza a React a tratar cada pestaña como un árbol
+          nuevo -- que ya lo era, cambia el componente entero -- y con eso
+          `animate-fade-in` se dispara de cero en cada cambio: sin key, React
+          reutilizaría el nodo del contenedor y la animación de entrada no
+          volvería a correr en la segunda visita a la misma pestaña. */}
+      <div key={activa} className="animate-fade-in">
+        <Pantalla irA={setActiva} />
+      </div>
+      <ToastHost />
     </div>
   );
 }

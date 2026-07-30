@@ -80,7 +80,7 @@ export default function Settings() {
         </section>
 
         {error && (
-          <section className="rounded-lg border border-short/40 bg-short-deep/30 overflow-hidden">
+          <section className="animate-fade-in rounded-lg border border-short/40 bg-short-deep/30 overflow-hidden">
             <h2 className="border-b border-short/30 px-4 py-2.5 text-xs uppercase tracking-widest text-short">
               Sin conexión con el backend
             </h2>

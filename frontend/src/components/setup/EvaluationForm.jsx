@@ -111,7 +111,7 @@ export default function EvaluationForm({ onResult, onVerHistorico }) {
 
   if (estado === "error") {
     return (
-      <section className="rounded-lg border border-short/40 bg-short-deep/30 overflow-hidden">
+      <section className="animate-fade-in rounded-lg border border-short/40 bg-short-deep/30 overflow-hidden">
         <h2 className="border-b border-short/30 px-4 py-2.5 text-xs uppercase tracking-widest text-short">
           Sin conexión con el backend
         </h2>
@@ -153,7 +153,16 @@ export default function EvaluationForm({ onResult, onVerHistorico }) {
 
 function IndicatorField({ indicador, valor, onElegir }) {
   return (
-    <li className="px-4 py-4">
+    <li
+      className={`px-4 py-4 ${
+        // El indicador puerta es estructuralmente distinto -- puede bloquear
+        // todo el resultado (Regla A) -- así que se insinúa con un acento en
+        // el borde izquierdo antes de que nadie llegue a leer la etiqueta.
+        // El resto de la fila no lleva tinte: solo el canto, para que siga
+        // leyéndose como parte de la misma lista y no como una tarjeta aparte.
+        indicador.is_gate ? "border-l-2 border-l-cls-medium bg-cls-medium/[0.03]" : ""
+      }`}
+    >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-ink">{indicador.name}</span>
         {indicador.is_gate && (
@@ -162,7 +171,7 @@ function IndicatorField({ indicador, valor, onElegir }) {
           </span>
         )}
         {valor === null && (
-          <span className="rounded border border-short/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-short">
+          <span className="animate-fade-in rounded border border-short/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-short">
             sin responder
           </span>
         )}
@@ -177,7 +186,7 @@ function IndicatorField({ indicador, valor, onElegir }) {
               type="button"
               onClick={() => onElegir(opcion.code)}
               aria-pressed={activa}
-              className={`rounded border px-3 py-1.5 text-sm transition-colors ${
+              className={`rounded border px-3 py-1.5 text-sm transition-all duration-150 active:scale-[0.96] ${
                 activa
                   ? "border-ink bg-raised text-ink"
                   : "border-line text-ink-dim hover:border-ink-faint hover:text-ink"

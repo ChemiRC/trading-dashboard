@@ -54,7 +54,7 @@ export default function ConfigHealth({ salud, error }) {
 
   return (
     <section
-      className={`rounded-lg border overflow-hidden ${
+      className={`rounded-lg border overflow-hidden transition-colors duration-300 ${
         todoOk ? "border-line bg-surface" : "border-cls-medium/50 bg-surface"
       }`}
     >
@@ -62,13 +62,13 @@ export default function ConfigHealth({ salud, error }) {
         <span className="text-xs uppercase tracking-widest text-ink-dim">
           Salud de la configuración
         </span>
-        <span className={`text-xs ${todoOk ? "text-long" : "text-cls-medium"}`}>
+        <span className={`text-xs transition-colors duration-300 ${todoOk ? "text-long" : "text-cls-medium"}`}>
           {todoOk ? "coherente" : "revisar"}
         </span>
       </h2>
 
       {!todoOk && (
-        <p className="border-b border-line bg-raised px-4 py-2.5 text-sm leading-relaxed text-cls-medium">
+        <p className="animate-fade-in border-b border-line bg-raised px-4 py-2.5 text-sm leading-relaxed text-cls-medium">
           La configuración vigente es incoherente. El motor sigue evaluando, pero el
           balance ya no significa lo que dice el modelo: revisa lo marcado abajo.
         </p>
