@@ -7,4 +7,8 @@ pytest==8.3.4
 # además requirements.txt y una base de datos alcanzable; si falta cualquiera
 # de las dos cosas se saltan solos en vez de fallar, y los del motor siguen
 # corriendo con pytest y nada más.
+#
+# httpx2 NO es un typo de httpx: es su sucesor (mismo autor) y es el paquete
+# que starlette >= 1.x exige para TestClient — con el httpx clásico emite un
+# DeprecationWarning y pide instalar httpx2. Ver starlette/testclient.py.
 httpx2==2.9.1

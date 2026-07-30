@@ -146,6 +146,7 @@ trading-dashboard/
 │   │   └── main.py        Creación de la app, CORS, lifespan
 │   ├── sql/               Esquema y seed  (001_schema · 002_seed · README)
 │   ├── tests/             test_engine (puro) · test_api (contra la BD real)
+│   ├── Procfile           Comando de arranque para Railway
 │   └── .env.example
 ├── frontend/
 │   ├── public/
@@ -412,6 +413,47 @@ Los del motor son puros y no necesitan nada. Los de la API hablan con la base de
 datos real —las reglas de peso, solape y coherencia **viven en el esquema**, y un
 mock las daría todas por buenas— y se saltan solos si no hay `.env`. Todo lo que
 escriben usa el símbolo `ZZTEST` y se borra al terminar.
+
+### Despliegue del backend en Railway
+
+El repositorio tiene `frontend/` y `backend/` en la misma raíz. Al crear el
+servicio en Railway hay que fijar **Root Directory: `backend/`** — si se deja en
+blanco, Railway intenta construir desde la raíz del repo y no encuentra ni
+`requirements.txt` ni el `Procfile`.
+
+`backend/Procfile` declara el comando de arranque:
+
+```
+web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+`$PORT` lo asigna Railway en cada despliegue; `--host 0.0.0.0` es obligatorio
+porque Railway solo enruta tráfico a ese host, nunca a `127.0.0.1`. El puerto no
+se lee en ningún sitio del código a propósito: es un dato de cómo se arranca el
+proceso, no de cómo se comporta la aplicación, así que vive en el `Procfile` y no
+en `Settings`. En local no cambia nada: `uvicorn app.main:app --reload` sigue sin
+`--port` y arranca en `8000`, el valor por defecto del propio uvicorn.
+
+Variables de entorno a rellenar a mano en el dashboard de Railway (los nombres
+viven en `backend/.env.example`; los valores, solo en tu `.env` local — nunca se
+commitean):
+
+| Variable | Obligatoria | Nota |
+| --- | --- | --- |
+| `DATABASE_URL` | **Sí** | El pooler de Supabase. Usa el *transaction pooler* (puerto 6543): los procesos de Railway son efímeros y el *session pooler* agota sus conexiones. |
+| `CORS_ORIGINS` | **Sí, en la práctica** | Por defecto es `http://localhost:5173`. Sin cambiarla al dominio real de Vercel, el navegador bloquea toda petición del frontend en producción. |
+| `APP_ENV` | Recomendada | `production` apaga `/docs` y `/openapi.json`. |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | No todavía | Reservadas para el Storage de la Fase 2; el backend arranca sin ellas. |
+| `LOG_LEVEL` | No | Default `info`. |
+| `RULE_B_ENABLED` | No | Default `true`, ya es la decisión confirmada. |
+| `DB_POOL_MIN_SIZE` / `DB_POOL_MAX_SIZE` | No | Defaults `1` / `4`, de sobra para un solo usuario. |
+
+`PORT` **no se configura a mano**: Railway la inyecta sola en cada despliegue.
+
+`BYBIT_API_KEY`, `BYBIT_API_SECRET` y `BYBIT_TESTNET` están en `.env.example`
+pero `Settings` (`app/core/config.py`) todavía no las lee — son documentación
+para la Fase 2. No hace falta configurarlas en Railway para que el backend de la
+Fase 1 funcione.
 
 ### Frontend
 
