@@ -505,7 +505,8 @@ create index if not exists trade_screenshots_trade_idx
 
 -- Lo que el frontend pide para pintar el formulario. Un solo GET y ya tiene
 -- indicadores, opciones, puntos y defaults, en orden. Cero catálogo en el JS.
-create or replace view v_indicator_catalog as
+create or replace view v_indicator_catalog
+with (security_invoker = true) as
 select
   i.id            as indicator_id,
   i.code          as indicator_code,
@@ -528,7 +529,8 @@ order by i.display_order, o.display_order;
 
 -- Salud de la configuración. Si el trader edita pesos hasta que dejen de sumar
 -- 100, la pantalla de ajustes lo enseña en vez de dejar que el ±100 sea mentira.
-create or replace view v_config_health as
+create or replace view v_config_health
+with (security_invoker = true) as
 select
   (select coalesce(sum(max_weight), 0) from indicators where is_active)      as suma_pesos,
   (select coalesce(sum(max_weight), 0) from indicators where is_active) = 100 as suma_es_100,
@@ -546,7 +548,8 @@ select
 -- El outcome se deriva del PnL cuando existe (el dato contable manda, venga
 -- de Bybit o tecleado a mano) y de `manual_outcome` como respaldo cuando no:
 -- en el registro manual el PnL es opcional y el trader aún sabe si ganó.
-create or replace view v_setups_with_outcome as
+create or replace view v_setups_with_outcome
+with (security_invoker = true) as
 select
   s.*,
   t.id        as trade_id,

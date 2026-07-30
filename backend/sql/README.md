@@ -3,18 +3,20 @@
 ## Orden de ejecución
 
 ```
-001_schema.sql          → tablas, triggers, vistas, RLS
-002_seed.sql            → catálogo de indicadores, opciones, umbrales y emociones
-003_manual_result.sql   → registro manual del resultado (columna manual_outcome,
-                          CHECK de coherencia y vista ampliada)
+001_schema.sql               → tablas, triggers, vistas, RLS
+002_seed.sql                 → catálogo de indicadores, opciones, umbrales y emociones
+003_manual_result.sql        → registro manual del resultado (columna manual_outcome,
+                               CHECK de coherencia y vista ampliada)
+004_security_invoker_views.sql → las vistas dejan de saltarse el RLS
 ```
 
 Todos son **idempotentes**. Se pueden relanzar sin duplicar nada. Pegarlos en el
 SQL Editor de Supabase o ejecutarlos con `psql "$DATABASE_URL" -f 001_schema.sql`.
 
-003 existe para bases de datos que ya estaban en marcha antes de esa entrega;
-001 incluye lo mismo para instalaciones desde cero. Mantener los dos en sincronía
-es deliberado: 001 es la verdad completa, 003 el camino de migración.
+003 y 004 existen para bases de datos que ya estaban en marcha antes de esas
+entregas; 001 incluye lo mismo para instalaciones desde cero. Mantener 001 en
+sincronía con las migraciones es deliberado: 001 es la verdad completa, las
+numeradas son el camino desde una base de datos vieja.
 
 Comprobación después del seed:
 
@@ -210,11 +212,36 @@ qué inflar los backups de la base de datos.
 
 RLS está **activado en todas las tablas y no hay ni una política**. El efecto es
 que las claves `anon` y `authenticated` no pueden leer ni escribir nada. El
-backend usa la `service_role` key, que salta RLS por diseño.
+backend se conecta por `DATABASE_URL` como `postgres`, que tiene `BYPASSRLS`.
 
 Es la traducción a SQL de la regla del README principal: *el frontend nunca habla
 con Supabase, solo con este backend*. Si algún día alguien se lleva la URL de
 Supabase y la clave pública al navegador, no consigue nada.
+
+### Las vistas también respetan el RLS (004)
+
+Durante un tiempo esa última frase fue mentira, y el Advisor de Supabase lo
+avisaba como *"Security Definer View"*. Una vista se ejecuta por defecto con los
+permisos de su **dueño**, no de quien la consulta; como las creó `postgres`,
+atravesaban el RLS de las tablas base. Y Supabase concede `SELECT` sobre todo lo
+de `public` a `anon` y `authenticated`. Medido antes de arreglarlo:
+
+```sql
+set role anon;
+select count(*) from setups;                 -- 0   RLS funcionando
+select count(*) from v_setups_with_outcome;  -- 2   RLS atravesado
+```
+
+Cualquiera con la URL del proyecto y la clave `anon` —pública por definición—
+podía leer el histórico entero por la vista. Las tres se recrearon con
+**`security_invoker = true`** (PostgreSQL 15+), que las hace ejecutarse con los
+permisos de quien consulta. El backend no nota nada, porque `postgres` sigue
+saltándose el RLS; `anon` pasa a ver cero filas.
+
+`v_config_health` es el único caso especial: al ser una vista de agregados sigue
+devolviendo **una fila** a `anon`, pero llena de ceros (`suma_pesos = 0`,
+`suma_es_100 = false`). No filtra ningún dato: es el resultado de contar filas
+que no puede ver.
 
 ---
 

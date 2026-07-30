@@ -39,7 +39,8 @@ alter table trades add constraint trades_manual_outcome_coherente check (
 --     PnL, se deriva de su signo igual que siempre (el dato objetivo manda).
 --   · expone lo que el detalle del histórico necesita del resultado: notas de
 --     cierre, origen y fechas (la de edición es la que delata una corrección).
-create or replace view v_setups_with_outcome as
+create or replace view v_setups_with_outcome
+with (security_invoker = true) as
 select
   s.*,
   t.id        as trade_id,

@@ -145,7 +145,7 @@ trading-dashboard/
 │   │   ├── models/        Esquemas Pydantic (contratos de entrada y salida)
 │   │   ├── scoring/       Motor de decisión — función pura, sin dependencias
 │   │   └── main.py        Creación de la app, CORS, lifespan
-│   ├── sql/               Esquema, seed y migraciones  (001 · 002 · 003 · README)
+│   ├── sql/               Esquema, seed y migraciones  (001 · 002 · 003 · 004 · README)
 │   ├── tests/             test_engine (puro) · test_api (contra la BD real)
 │   ├── Procfile           Comando de arranque para Railway
 │   └── .env.example
@@ -481,10 +481,13 @@ En el SQL Editor de Supabase, ejecutar **en este orden**:
 ```
 backend/sql/001_schema.sql         tablas, triggers, vistas, RLS
 backend/sql/002_seed.sql           catálogo de indicadores, opciones y umbrales
-backend/sql/003_manual_result.sql  registro manual del resultado (ya incluido en 001
-                                   para instalaciones nuevas; en las existentes, aplica
-                                   la columna y la vista que faltan)
+backend/sql/003_manual_result.sql  registro manual del resultado
+backend/sql/004_security_invoker_views.sql   las vistas dejan de saltarse el RLS
 ```
+
+003 y 004 ya están incluidos en 001 para instalaciones nuevas; en una base de
+datos que ya estaba en marcha, aplican lo que le falta. Ver
+[backend/sql/README.md](backend/sql/README.md).
 
 Todos son idempotentes. Comprobar después con `select * from v_config_health;`.
 
@@ -615,6 +618,10 @@ Reglas no negociables del proyecto:
 3. **El frontend nunca habla con Supabase ni con el exchange.** Solo con este backend.
    El backend es el único que tiene credenciales. Un secreto en el frontend es un
    secreto público: acaba dentro del bundle que se descarga el navegador.
+   RLS está activado en todas las tablas y sin políticas, y desde la migración
+   **004** también las vistas lo respetan (`security_invoker = true`): antes se
+   ejecutaban con los permisos de su dueño y dejaban leer el histórico con la
+   clave `anon`, que es pública.
 4. **La API key de Bybit (Fase 2) será de solo lectura.** Sin permiso de trading ni de
    retiro.
 5. **El sistema nunca ejecuta órdenes.** No es una limitación temporal, es una decisión
