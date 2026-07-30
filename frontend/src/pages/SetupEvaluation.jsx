@@ -13,7 +13,7 @@ import EvaluationForm from "../components/setup/EvaluationForm.jsx";
  * `EvaluationForm` en cada cambio de selección. Qué decide (Decision Panel) →
  * por qué (Confluence Score) → qué significa (Permission Panel).
  */
-export default function SetupEvaluation() {
+export default function SetupEvaluation({ irA }) {
   const [resultado, setResultado] = useState({
     status: "incompleto",
     evaluation: null,
@@ -33,7 +33,10 @@ export default function SetupEvaluation() {
         </header>
 
         <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-          <EvaluationForm onResult={setResultado} />
+          <EvaluationForm
+            onResult={setResultado}
+            onVerHistorico={irA ? () => irA("historico") : undefined}
+          />
 
           <div className="flex flex-col gap-6">
             <DecisionPanel

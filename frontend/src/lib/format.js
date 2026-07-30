@@ -41,3 +41,16 @@ export function formatQuantity(valor) {
   if (valor === null || valor === undefined || Number.isNaN(valor)) return "—";
   return valor.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 }
+
+/**
+ * Fecha y hora compactas y de ancho fijo: `29/07/2026 19:13`. A mano y no con
+ * `toLocaleString` porque el formato dependería del navegador, y en la tabla
+ * del histórico las fechas se leen en columna -- con anchos distintos dejarían
+ * de alinearse, que es lo único que se les pide.
+ */
+export function formatFecha(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}

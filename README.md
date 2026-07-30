@@ -144,7 +144,7 @@ trading-dashboard/
 │   │   ├── models/        Esquemas Pydantic (contratos de entrada y salida)
 │   │   ├── scoring/       Motor de decisión — función pura, sin dependencias
 │   │   └── main.py        Creación de la app, CORS, lifespan
-│   ├── sql/               Esquema y seed  (001_schema · 002_seed · README)
+│   ├── sql/               Esquema, seed y migraciones  (001 · 002 · 003 · README)
 │   ├── tests/             test_engine (puro) · test_api (contra la BD real)
 │   ├── Procfile           Comando de arranque para Railway
 │   └── .env.example
@@ -163,6 +163,9 @@ trading-dashboard/
 │   │   │   ├── setup/
 │   │   │   │   ├── EvaluationForm.jsx    Los 6 indicadores; evalúa en vivo
 │   │   │   │   └── SaveSetupPanel.jsx    Símbolo/TF/precio/notas → guardar
+│   │   │   ├── history/
+│   │   │   │   ├── SetupList.jsx         Tabla del histórico, filas expandibles
+│   │   │   │   └── SetupDetail.jsx       Desglose congelado de un setup
 │   │   │   ├── risk/
 │   │   │   │   └── RiskCalculator.jsx    R:B, tamaño de posición, ATR
 │   │   │   ├── settings/
@@ -174,14 +177,15 @@ trading-dashboard/
 │   │   ├── hooks/
 │   │   │   └── useConfigDrafts.js  Borradores por fila de la configuración
 │   │   ├── lib/
-│   │   │   ├── format.js  Puntos con signo, color por signo, cifras
+│   │   │   ├── format.js  Puntos con signo, color por signo, cifras, fechas
 │   │   │   └── risk.js    Cálculos de riesgo — funciones puras
 │   │   ├── pages/
 │   │   │   ├── SetupEvaluation.jsx  Formulario + los tres paneles
 │   │   │   ├── RiskCalculation.jsx  Gestión de riesgo
+│   │   │   ├── SetupHistory.jsx     Histórico con paginación
 │   │   │   ├── Settings.jsx         Configuración de la estrategia
 │   │   │   └── ConnectionCheck.jsx  Diagnóstico (no montada; ver abajo)
-│   │   ├── App.jsx        Pestañas entre las tres pantallas
+│   │   ├── App.jsx        Pestañas entre las cuatro pantallas
 │   │   ├── main.jsx       Punto de entrada de React
 │   │   └── index.css      Tokens de diseño (@theme de Tailwind)
 │   ├── tests/             test_risk.mjs — cálculos de riesgo, sin framework
@@ -223,16 +227,19 @@ Tema oscuro, tipografía monoespaciada en todo el dashboard. Lo segundo no es es
 las cifras quedan alineadas en columna y `+30` / `−30` ocupan lo mismo, que es lo que
 hace comparable el desglose de un vistazo.
 
-### Las tres pantallas
+### Las cuatro pantallas
 
 Se navega entre ellas con pestañas y estado local, **sin librería de routing**: ninguna
 necesita URL propia ni botón de atrás, así que un router sería una dependencia entera
-para resolver lo que `useState` ya resuelve.
+para resolver lo que `useState` ya resuelve. Solo la pestaña activa está montada:
+cambiar de pestaña desmonta y remonta, así que cada visita al histórico o a
+configuración relee del backend en vez de enseñar una copia vieja.
 
 | Pestaña | Qué hace |
 | --- | --- |
 | **Evaluación de setup** | Los 6 indicadores, los tres paneles de decisión y el guardado |
 | **Gestión de riesgo** | R:B, tamaño de posición, pérdida máxima, ratios ATR |
+| **Histórico** | Los setups guardados, su desglose congelado, y el registro manual del resultado |
 | **Configuración** | Pesos, puntos, bandas y el semáforo de salud |
 
 `ConnectionCheck` sigue en `pages/` pero **ya no se monta**: cumplió su papel en la
@@ -248,6 +255,8 @@ Son dos acciones distintas y el frontend las mantiene separadas a propósito:
 - **Guardar** ocurre solo cuando el trader pulsa *Guardar setup*, contra
   `POST /api/setups`. Pide lo que el veredicto no puede deducir —símbolo, timeframe,
   precio al evaluar y notas opcionales— y persiste el setup con sus puntos congelados.
+  La confirmación ofrece «Ver en el histórico», que cierra el flujo: evaluar →
+  guardar → ver.
 
 Lo que se manda al guardar son **las mismas selecciones**, nunca el balance: el
 backend reevalúa. Lo que enseña el Decision Panel es una previsualización, no el
@@ -261,6 +270,36 @@ Fase 2 comparará con el precio real de entrada en Bybit.
 Regla A, la Regla B o por score bajo registra las veces que el trader se contuvo
 teniendo evidencia parcial. Esa es la parte del histórico que mide disciplina y no
 aciertos, así que la interfaz lo dice en vez de dar a entender que no merece la pena.
+
+### El resultado se registra después — y a mano, de momento
+
+Desde el detalle de un setup en el histórico se registra cómo terminó: ganada,
+perdida o breakeven, con PnL y notas de cierre opcionales. Por debajo **no hay
+ninguna columna nueva en `setups`**: se crea una fila en `trades` con
+`source = 'manual'` vinculada al setup, que es exactamente la estructura que la
+Fase 2 rellenará desde Bybit. La vista `v_setups_with_outcome` sigue siendo la
+única fuente del resultado.
+
+Cómo convivirá con Bybit:
+
+- **El PnL manda.** Si hay PnL (tecleado hoy, importado mañana), el resultado se
+  deriva de su signo; lo que el trader declaró (`manual_outcome`) solo se usa
+  cuando no hay PnL del que derivar. Un CHECK del esquema impide que declaración
+  y PnL se contradigan.
+- **`source` distingue los orígenes.** Las trades manuales y las importadas
+  conviven en la misma tabla; la sincronización de la Fase 2 sabe cuáles son
+  suyas, y el `UNIQUE` de `trades.setup_id` le impide duplicar un setup ya
+  resuelto. Los resultados venidos de Bybit no se editan a mano (409).
+- **Los NO TRADE no registran resultado.** Quedarse fuera no tiene desenlace. Si
+  el trader operó al margen del veredicto, eso es una operación improvisada —
+  trade sin setup vinculado — y llegará por la vía de Bybit.
+
+El registro es **posterior y separado de la evaluación**, a propósito: el
+contrato del endpoint no acepta ni selecciones ni balance, y desde la pantalla
+no hay forma de tocar el desglose congelado. El valor del sistema depende de que
+el setup se evaluó *antes* de saber cómo terminó; aquí solo se añade el
+desenlace. Corregir un error de captura sí se puede, y deja huella: la fecha de
+la corrección queda visible junto al resultado.
 
 ### Tokens de color
 
@@ -301,6 +340,8 @@ Documentación interactiva completa en `/docs`. Resumen:
 | `POST`  | `/api/setups`                    | Evaluar **y guardar**                          |
 | `GET`   | `/api/setups`                    | Histórico, con filtros y paginación            |
 | `GET`   | `/api/setups/{id}`               | Un setup con su desglose congelado             |
+| `POST`  | `/api/setups/{id}/result`        | Registrar a mano cómo terminó                  |
+| `PATCH` | `/api/setups/{id}/result`        | Corregir un resultado registrado               |
 
 ### Decisiones de esta capa
 
@@ -381,11 +422,14 @@ Después rellena `backend/.env` con las credenciales de Supabase.
 En el SQL Editor de Supabase, ejecutar **en este orden**:
 
 ```
-backend/sql/001_schema.sql    tablas, triggers, vistas, RLS
-backend/sql/002_seed.sql      catálogo de indicadores, opciones y umbrales
+backend/sql/001_schema.sql         tablas, triggers, vistas, RLS
+backend/sql/002_seed.sql           catálogo de indicadores, opciones y umbrales
+backend/sql/003_manual_result.sql  registro manual del resultado (ya incluido en 001
+                                   para instalaciones nuevas; en las existentes, aplica
+                                   la columna y la vista que faltan)
 ```
 
-Ambos son idempotentes. Comprobar después con `select * from v_config_health;`.
+Todos son idempotentes. Comprobar después con `select * from v_config_health;`.
 
 ### Backend
 
@@ -599,7 +643,7 @@ Ninguna bloquea la Fase 2; son cosas que se han quedado a propósito fuera del a
   permite desactivarlos, pero `GET /api/config/catalog` solo devuelve los activos, así
   que desde ahí no se pueden recuperar: hoy hay que reactivarlos en la base de datos.
   Haría falta un parámetro nuevo en el endpoint del catálogo.
-- **Histórico de setups en pantalla.** `GET /api/setups` existe, está probado y ya
-  tiene su envoltorio en `src/api/setups.js` (`listSetups`), pero ninguna pantalla lo
-  consume todavía. Es la puerta de entrada natural del Trading Journal de la Fase 2.
+- **Filtros combinados en el histórico** (símbolo, decisión, rango de balance): son de
+  la Fase 4. La pantalla ya pagina con `limit`/`offset` y `listSetups` ya acepta
+  `symbol`, así que añadirlos será pasar parámetros, no reestructurar.
 - **Tests automáticos del frontend más allá de `lib/risk.js`.**

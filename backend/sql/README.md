@@ -3,12 +3,18 @@
 ## Orden de ejecución
 
 ```
-001_schema.sql   → tablas, triggers, vistas, RLS
-002_seed.sql     → catálogo de indicadores, opciones, umbrales y emociones
+001_schema.sql          → tablas, triggers, vistas, RLS
+002_seed.sql            → catálogo de indicadores, opciones, umbrales y emociones
+003_manual_result.sql   → registro manual del resultado (columna manual_outcome,
+                          CHECK de coherencia y vista ampliada)
 ```
 
-Ambos son **idempotentes**. Se pueden relanzar sin duplicar nada. Pegarlos en el
+Todos son **idempotentes**. Se pueden relanzar sin duplicar nada. Pegarlos en el
 SQL Editor de Supabase o ejecutarlos con `psql "$DATABASE_URL" -f 001_schema.sql`.
+
+003 existe para bases de datos que ya estaban en marcha antes de esa entrega;
+001 incluye lo mismo para instalaciones desde cero. Mantener los dos en sincronía
+es deliberado: 001 es la verdad completa, 003 el camino de migración.
 
 Comprobación después del seed:
 
@@ -138,13 +144,22 @@ false`: desaparece del formulario, sigue existiendo para el histórico.
 El índice sobre `option_id` es el que resuelve la consulta de la Fase 4:
 "todos los setups con divergencia oculta".
 
-### `trades` — vacía hasta Fase 2
+### `trades` — hoy el registro manual, mañana Bybit
 
 Las columnas están **separadas en dos bloques**: lo que viene de Bybit y lo que
 solo puede escribir el trader. La razón es operativa: los datos de Bybit se
 pueden resincronizar en cualquier momento sin miedo; los motivos de entrada, la
 emoción y los comentarios son irrecuperables si un `UPSERT` los pisa. Teniéndolos
 identificados, la sincronización de la Fase 2 sabe qué le está permitido tocar.
+
+Desde 003, el **registro manual del resultado** (adelanto de la Fase 2) escribe
+aquí: una fila con `source = 'manual'`, el `manual_outcome` que el trader declaró
+y, si lo tenía a mano, el PnL. `opened_at`/`closed_at` quedan a NULL a propósito
+— el trader registra a posteriori y no sabemos cuándo cerró de verdad; inventar
+un `now()` sería fabricar un dato que Bybit sí traerá. Un CHECK
+(`trades_manual_outcome_coherente`) impide que la declaración contradiga al PnL,
+y el UNIQUE de `setup_id` es el mismo que le impedirá a la sincronización de la
+Fase 2 duplicar un setup ya resuelto.
 
 `pnl_net` **no** es una columna calculada a partir de `pnl_gross - fees +
 funding`. El neto que da el exchange es la verdad contable; recalcularlo nosotros
@@ -169,8 +184,12 @@ proceso. Con el enlace en `setups` esa operación no tendría dónde colgarse.
 
 El "campo de resultado nullable" del setup existe como la vista
 **`v_setups_with_outcome`**, que expone `outcome` (`WIN` / `LOSS` / `BREAKEVEN` /
-`NULL`) derivado del PnL del trade. Como vista y no como columna: el resultado ya
-lo sabe `trades`, y una copia en `setups` sería un dato que se queda viejo.
+`NULL`). Como vista y no como columna: el resultado ya lo sabe `trades`, y una
+copia en `setups` sería un dato que se queda viejo. La derivación tiene un orden
+deliberado: si hay PnL, el signo manda —el dato contable es la verdad, venga de
+Bybit o tecleado—; solo cuando no lo hay se usa `manual_outcome`, lo que el
+trader declaró. Sin esa columna, una ganada registrada sin PnL caería en el
+`else` y saldría BREAKEVEN.
 
 `emotion_code` apunta a un catálogo (`trade_emotions`) en vez de ser texto libre.
 Con texto libre, las estadísticas de la Fase 3 no se pueden agrupar: "FOMO",
@@ -199,16 +218,18 @@ Supabase y la clave pública al navegador, no consigue nada.
 
 ---
 
+## Decisiones cerradas con el trader
+
+- **Patrones gráficos: todos valen lo mismo dentro de su dirección** (±10, tres
+  opciones genéricas). **Los triángulos están fuera a propósito**: son ambiguos,
+  pueden resolver hacia arriba o hacia abajo, y meterlos obligaría a inventarles
+  un signo. Si algún día un patrón concreto pesa distinto, son `INSERT` en
+  `indicator_options`, no código.
+- **Regla B: confirmada y activa.** Implementada como
+  `no_trade_reason = 'TRIGGER_CONTRADICTION'` y aislada en ese único valor, con
+  su interruptor (`RULE_B_ENABLED`) para poder apagarla y medir cuánto filtra
+  sin tocar el esquema.
+
 ## Pendiente de confirmar con el trader
 
-- **Catálogo de patrones gráficos.** Ahora hay tres opciones genéricas
-  (alcista / sin patrón / bajista) valiendo ±10. Falta decidir si cada patrón
-  concreto es su propia opción y si todos valen lo mismo. **Los triángulos están
-  fuera a propósito**: son ambiguos, pueden resolver hacia arriba o hacia abajo,
-  y meterlos ahora obligaría a inventarles un signo. Cuando se decida, son
-  `INSERT` en `indicator_options`.
-- **Regla B** (contradicción entre disparador y balance). Implementada como
-  `no_trade_reason = 'TRIGGER_CONTRADICTION'`. Está aislada en ese único valor
-  precisamente para poder retirarla sin tocar el esquema si el trader la
-  descarta.
 - **Vocabulario de emociones.** El seed de `trade_emotions` es provisional.

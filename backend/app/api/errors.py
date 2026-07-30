@@ -53,6 +53,15 @@ MENSAJES_CONSTRAINT: dict[str, str] = {
     "indicator_options_order_key": (
         "Ya hay otra opcion en esa posicion dentro del mismo indicador."
     ),
+    "trades_setup_id_key": (
+        "Este setup ya tiene un resultado registrado. Corrige el existente en "
+        "vez de registrar otro."
+    ),
+    "trades_manual_outcome_coherente": (
+        "El resultado declarado y el PnL se contradicen: un PnL positivo es una "
+        "operacion ganada, uno negativo perdida y cero breakeven. Corrige uno "
+        "de los dos."
+    ),
 }
 
 

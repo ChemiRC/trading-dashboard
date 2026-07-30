@@ -356,3 +356,140 @@ def test_patch_vacio_es_422(client):
 def test_patch_con_campo_desconocido_es_422(client):
     r = client.patch("/api/config/indicators/liquidity", json={"peso": 20})
     assert r.status_code == 422
+
+
+# --- Resultado manual ---------------------------------------------------------
+
+
+def _setup_long(client, todo_alcista) -> str:
+    """Guarda un setup LONG de prueba y devuelve su id."""
+    r = client.post(
+        "/api/setups", json={"selections": todo_alcista, "symbol": SYMBOL}
+    )
+    assert r.status_code == 201
+    return r.json()["id"]
+
+
+def test_registrar_resultado_con_pnl(client, todo_alcista):
+    setup_id = _setup_long(client, todo_alcista)
+
+    r = client.post(f"/api/setups/{setup_id}/result", json={
+        "outcome": "WIN", "pnl_net": "125.50", "notes": "cerro en el TP",
+    })
+    assert r.status_code == 201
+    detalle = r.json()
+    assert detalle["outcome"] == "WIN"
+    assert detalle["pnl_net"] == "125.50000000"
+    assert detalle["result_notes"] == "cerro en el TP"
+    assert detalle["trade_source"] == "manual"
+    assert detalle["trade_id"] is not None
+    # La lista también lo enseña: mismo dato, misma vista.
+    pagina = client.get("/api/setups", params={"symbol": SYMBOL}).json()
+    fila = next(s for s in pagina["items"] if s["id"] == setup_id)
+    assert fila["outcome"] == "WIN"
+
+
+def test_registrar_resultado_sin_pnl_usa_lo_declarado(client, todo_alcista):
+    """Sin PnL, el outcome sale de manual_outcome — no un BREAKEVEN por defecto."""
+    setup_id = _setup_long(client, todo_alcista)
+
+    r = client.post(f"/api/setups/{setup_id}/result", json={"outcome": "LOSS"})
+    assert r.status_code == 201
+    assert r.json()["outcome"] == "LOSS"
+    assert r.json()["pnl_net"] is None
+
+
+def test_el_pnl_manda_sobre_lo_declarado_si_se_contradicen(client, todo_alcista):
+    """WIN con PnL negativo: el esquema lo rechaza, no lo arbitra el backend."""
+    setup_id = _setup_long(client, todo_alcista)
+
+    r = client.post(f"/api/setups/{setup_id}/result", json={
+        "outcome": "WIN", "pnl_net": "-10",
+    })
+    assert r.status_code == 409
+    assert r.json()["error"]["code"] == "DB_CONSTRAINT"
+    assert "contradicen" in r.json()["error"]["message"]
+
+
+def test_no_se_puede_registrar_dos_veces(client, todo_alcista):
+    setup_id = _setup_long(client, todo_alcista)
+    client.post(f"/api/setups/{setup_id}/result", json={"outcome": "WIN"})
+
+    r = client.post(f"/api/setups/{setup_id}/result", json={"outcome": "LOSS"})
+    assert r.status_code == 409
+    assert "ya tiene un resultado" in r.json()["error"]["message"]
+
+
+def test_un_no_trade_no_registra_resultado(client, todo_alcista):
+    """NO TRADE = quedarse fuera: no hay operación cuyo desenlace registrar."""
+    creado = client.post("/api/setups", json={
+        "selections": {**todo_alcista, "rsi_divergence": "none"}, "symbol": SYMBOL,
+    }).json()
+    assert creado["decision"] == "NO_TRADE"
+
+    r = client.post(f"/api/setups/{creado['id']}/result", json={"outcome": "WIN"})
+    assert r.status_code == 409
+    assert "NO TRADE" in r.json()["error"]["message"]
+
+
+def test_corregir_un_resultado_deja_fecha_de_edicion(client, todo_alcista):
+    setup_id = _setup_long(client, todo_alcista)
+    creado = client.post(f"/api/setups/{setup_id}/result", json={
+        "outcome": "WIN", "pnl_net": "50",
+    }).json()
+
+    r = client.patch(f"/api/setups/{setup_id}/result", json={
+        "outcome": "LOSS", "pnl_net": "-25.75", "notes": "error de captura",
+    })
+    assert r.status_code == 200
+    corregido = r.json()
+    assert corregido["outcome"] == "LOSS"
+    assert corregido["pnl_net"] == "-25.75000000"
+    assert corregido["result_notes"] == "error de captura"
+    # El trigger de updated_at delata la corrección.
+    assert corregido["result_updated_at"] > creado["result_updated_at"]
+
+
+def test_corregir_solo_el_pnl_no_toca_lo_demas(client, todo_alcista):
+    setup_id = _setup_long(client, todo_alcista)
+    client.post(f"/api/setups/{setup_id}/result", json={
+        "outcome": "WIN", "pnl_net": "50", "notes": "primera nota",
+    })
+
+    r = client.patch(f"/api/setups/{setup_id}/result", json={"pnl_net": "80"})
+    assert r.status_code == 200
+    assert r.json()["outcome"] == "WIN"
+    assert r.json()["result_notes"] == "primera nota"
+    assert r.json()["pnl_net"] == "80.00000000"
+
+
+def test_corregir_sin_resultado_previo_es_404(client, todo_alcista):
+    setup_id = _setup_long(client, todo_alcista)
+    r = client.patch(f"/api/setups/{setup_id}/result", json={"outcome": "WIN"})
+    assert r.status_code == 404
+
+
+def test_registrar_en_setup_inexistente_es_404(client):
+    r = client.post(f"/api/setups/{uuid.uuid4()}/result", json={"outcome": "WIN"})
+    assert r.status_code == 404
+
+
+def test_el_registro_no_puede_tocar_la_evaluacion(client, todo_alcista):
+    """El contrato prohíbe campos extra: mandar selecciones o balance es 422."""
+    setup_id = _setup_long(client, todo_alcista)
+
+    r = client.post(f"/api/setups/{setup_id}/result", json={
+        "outcome": "WIN", "raw_balance": 5,
+    })
+    assert r.status_code == 422
+
+    r = client.post(f"/api/setups/{setup_id}/result", json={
+        "outcome": "WIN", "selections": {"rsi_divergence": "none"},
+    })
+    assert r.status_code == 422
+
+    # Y tras registrar, la evaluación sigue intacta.
+    client.post(f"/api/setups/{setup_id}/result", json={"outcome": "WIN"})
+    detalle = client.get(f"/api/setups/{setup_id}").json()
+    assert detalle["raw_balance"] == 100
+    assert len(detalle["selections"]) == 6

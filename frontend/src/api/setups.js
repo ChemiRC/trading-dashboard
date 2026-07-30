@@ -58,3 +58,42 @@ export function listSetups({ symbol, limit, offset } = {}, options) {
   const cadena = query.toString();
   return request(`/api/setups${cadena ? `?${cadena}` : ""}`, options);
 }
+
+/**
+ * Un setup con su desglose congelado: las opciones que se eligieron y los
+ * puntos que se aplicaron **aquel día**, no los del catálogo de hoy.
+ */
+export function getSetup(id, options) {
+  return request(`/api/setups/${encodeURIComponent(id)}`, options);
+}
+
+/**
+ * Registra a mano cómo terminó el setup. Crea la fila de `trades` con
+ * source='manual' — el adelanto del registro automático de la Fase 2.
+ *
+ * El PnL viaja como **texto** por el mismo motivo que el precio al guardar:
+ * la columna es numeric y un float de JavaScript rompería los céntimos.
+ * Devuelve el detalle completo ya actualizado.
+ *
+ * @param {string} setupId
+ * @param {object} result
+ * @param {"WIN"|"LOSS"|"BREAKEVEN"} result.outcome
+ * @param {string} [result.pnl_net]
+ * @param {string} [result.notes]
+ */
+export function registerSetupResult(setupId, result, options) {
+  return request(`/api/setups/${encodeURIComponent(setupId)}/result`, {
+    method: "POST",
+    body: result,
+    ...options,
+  });
+}
+
+/** Corrige un resultado ya registrado. Solo viaja lo que cambió. */
+export function updateSetupResult(setupId, changes, options) {
+  return request(`/api/setups/${encodeURIComponent(setupId)}/result`, {
+    method: "PATCH",
+    body: changes,
+    ...options,
+  });
+}

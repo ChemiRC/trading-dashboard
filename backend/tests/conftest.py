@@ -150,11 +150,13 @@ def client():
 
 @pytest.fixture(scope="session", autouse=True)
 def limpia_setups_de_prueba():
-    """Borra los setups del símbolo de pruebas al acabar.
+    """Borra los setups y trades del símbolo de pruebas al acabar.
 
     Se ejecuta también antes, por si una ejecución anterior murió a mitad. El
-    borrado arrastra `setup_selections` por el ON DELETE CASCADE, y no toca
-    ninguna otra fila: el filtro es el símbolo reservado.
+    borrado de setups arrastra `setup_selections` por el ON DELETE CASCADE,
+    pero NO las trades: ese FK es ON DELETE SET NULL (una operación real
+    sobrevive a su setup), así que las trades de prueba se borran aparte y
+    primero. Nada más se toca: el filtro es siempre el símbolo reservado.
     """
     def borra() -> int:
         try:
@@ -165,6 +167,9 @@ def limpia_setups_de_prueba():
             return 0
         with psycopg.connect(get_settings().database_url, sslmode="require") as conn:
             n = conn.execute(
+                "delete from trades where symbol = %s", [SYMBOL_PRUEBAS]
+            ).rowcount
+            n += conn.execute(
                 "delete from setups where symbol = %s", [SYMBOL_PRUEBAS]
             ).rowcount
             conn.commit()

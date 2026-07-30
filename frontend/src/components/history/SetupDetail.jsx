@@ -1,0 +1,376 @@
+import { useEffect, useState } from "react";
+
+import { getSetup, registerSetupResult, updateSetupResult } from "../../api/setups.js";
+import { conSigno, formatFecha, formatNumber, tono } from "../../lib/format.js";
+
+/**
+ * Desglose completo de un setup guardado, vía `GET /api/setups/{id}`.
+ *
+ * Lo que se pinta son los puntos **congelados** -- `points_applied`, los que
+ * se aplicaron el día de la evaluación -- no los del catálogo de hoy. Si el
+ * trader cambió un peso la semana pasada, este desglose no se mueve: es la
+ * garantía que hace comparable el histórico entre meses, y por eso el rótulo
+ * lo dice explícitamente.
+ *
+ * Aquí vive también el registro manual del resultado (adelanto de la Fase 2).
+ * La evaluación original es intocable desde esta pantalla a propósito: no hay
+ * ni un control que edite selecciones o balance -- el valor del sistema
+ * depende de que el setup se evaluó ANTES de saber cómo terminó, y lo único
+ * que se añade a posteriori es el desenlace.
+ */
+
+// El mismo mapa que usa el Permission Panel. El texto largo del motivo
+// (`no_trade_message`) viene del backend; esto es solo la etiqueta corta.
+const ETIQUETA_MOTIVO = {
+  GATE_NO_DIVERGENCE: "Regla A · sin disparador",
+  TRIGGER_CONTRADICTION: "Regla B · contradicción",
+  ZERO_BALANCE: "Balance cero",
+  BELOW_THRESHOLD: "Score bajo",
+};
+
+const ETIQUETA_OUTCOME = { WIN: "Ganada", LOSS: "Perdida", BREAKEVEN: "Breakeven" };
+
+const CLASE_OUTCOME = {
+  WIN: "border-long/50 bg-long-deep/40 text-long",
+  LOSS: "border-short/50 bg-short-deep/40 text-short",
+  BREAKEVEN: "border-line bg-raised text-flat",
+};
+
+export default function SetupDetail({ id, onActualizado }) {
+  const [estado, setEstado] = useState("cargando");
+  const [setup, setSetup] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const controlador = new AbortController();
+
+    getSetup(id, { signal: controlador.signal })
+      .then((datos) => {
+        setSetup(datos);
+        setEstado("ok");
+      })
+      .catch((fallo) => {
+        if (fallo.isAborted) return;
+        setError(fallo);
+        setEstado("error");
+      });
+
+    return () => controlador.abort();
+  }, [id]);
+
+  function actualizado(nuevo) {
+    setSetup(nuevo);
+    onActualizado?.(nuevo);
+  }
+
+  if (estado === "cargando") {
+    return (
+      <div className="border-t border-line px-4 py-4">
+        <p className="animate-pulse text-sm text-ink-dim">Cargando desglose…</p>
+      </div>
+    );
+  }
+
+  if (estado === "error") {
+    return (
+      <div className="space-y-1 border-t border-line px-4 py-4">
+        <div className="text-xs text-short">{error.code}</div>
+        <div className="text-sm text-ink">{error.message}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-line bg-base/40 px-4 py-4">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="text-[11px] uppercase tracking-wider text-ink-faint">
+          Desglose congelado — los puntos del día de la evaluación, no los de hoy
+        </span>
+        {setup.classification_label && (
+          <span className="text-xs text-ink-dim">{setup.classification_label}</span>
+        )}
+      </div>
+
+      <ul className="divide-y divide-line/60">
+        {setup.selections.map((s) => (
+          <li
+            key={s.indicator_code}
+            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2 text-sm"
+          >
+            <span>
+              <span className="text-ink">{s.indicator_name}</span>{" "}
+              <span className="text-ink-dim">{s.option_label}</span>
+            </span>
+            <span className="tabular-nums">
+              <span className={tono(s.points_applied)}>{conSigno(s.points_applied)}</span>
+              <span className="text-ink-faint"> / {s.max_weight}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex items-baseline justify-between border-t border-line py-2.5">
+        <span className="text-xs uppercase tracking-widest text-ink-dim">Balance</span>
+        <span
+          className={`tabular-nums ${
+            setup.raw_balance == null ? "text-flat" : tono(setup.raw_balance)
+          }`}
+        >
+          {setup.raw_balance == null ? "— (Regla A: no se calculó)" : conSigno(setup.raw_balance)}
+        </span>
+      </div>
+
+      {setup.decision === "NO_TRADE" && setup.no_trade_reason && (
+        <div className="mt-2 rounded border border-line bg-raised px-3 py-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-ink-faint">
+            {ETIQUETA_MOTIVO[setup.no_trade_reason] ?? setup.no_trade_reason}
+          </div>
+          <div className="mt-1 text-sm leading-relaxed text-ink">{setup.no_trade_message}</div>
+        </div>
+      )}
+
+      {setup.notes && (
+        <div className="mt-3">
+          <div className="text-[11px] uppercase tracking-wider text-ink-faint">Notas</div>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink-dim">
+            {setup.notes}
+          </p>
+        </div>
+      )}
+
+      {setup.price_at_evaluation != null && (
+        <div className="mt-3 text-xs text-ink-faint">
+          Precio al evaluar:{" "}
+          <span className="tabular-nums text-ink-dim">
+            {formatNumber(Number(setup.price_at_evaluation))}
+          </span>
+        </div>
+      )}
+
+      <ResultSection setup={setup} onActualizado={actualizado} />
+    </div>
+  );
+}
+
+/**
+ * El desenlace: se muestra si existe, se registra si no, y se corrige si el
+ * trader se equivocó al capturarlo -- con la fecha de la corrección visible.
+ */
+function ResultSection({ setup, onActualizado }) {
+  const [editando, setEditando] = useState(false);
+
+  // Un NO TRADE es quedarse fuera: no hay operación cuyo resultado registrar.
+  // Si el trader operó igualmente, es una operación improvisada y llegará por
+  // la vía de Bybit en la Fase 2 (trade sin setup vinculado).
+  if (setup.decision === "NO_TRADE") {
+    return (
+      <div className="mt-4 border-t border-line pt-3 text-xs text-ink-faint">
+        NO TRADE: no hay operación cuyo resultado registrar.
+      </div>
+    );
+  }
+
+  const corregido =
+    setup.result_updated_at &&
+    setup.result_created_at &&
+    setup.result_updated_at !== setup.result_created_at;
+
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="text-[11px] uppercase tracking-wider text-ink-faint">
+          Resultado
+        </span>
+        {setup.outcome && !editando && setup.trade_source === "manual" && (
+          <button
+            type="button"
+            onClick={() => setEditando(true)}
+            className="text-xs text-ink-faint transition-colors hover:text-ink"
+          >
+            Corregir
+          </button>
+        )}
+      </div>
+
+      {!setup.outcome && !editando && (
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setEditando(true)}
+            className="rounded border border-ink px-3 py-1.5 text-sm text-ink transition-colors hover:bg-raised"
+          >
+            Registrar resultado
+          </button>
+          <span className="text-xs text-ink-faint">
+            La operación se cerró y quieres dejar constancia de cómo terminó.
+          </span>
+        </div>
+      )}
+
+      {setup.outcome && !editando && (
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span
+            className={`inline-block rounded border px-2.5 py-0.5 text-sm ${
+              CLASE_OUTCOME[setup.outcome] ?? CLASE_OUTCOME.BREAKEVEN
+            }`}
+          >
+            {ETIQUETA_OUTCOME[setup.outcome] ?? setup.outcome}
+          </span>
+          {setup.pnl_net != null && (
+            <span className={`tabular-nums text-sm ${tono(Number(setup.pnl_net))}`}>
+              {Number(setup.pnl_net) > 0 ? "+" : ""}
+              {formatNumber(Number(setup.pnl_net))} USDT
+            </span>
+          )}
+          <span className="text-xs text-ink-faint">
+            registrado el {formatFecha(setup.result_created_at)}
+            {corregido && (
+              <span className="text-cls-medium">
+                {" "}
+                · corregido el {formatFecha(setup.result_updated_at)}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+
+      {setup.outcome && !editando && setup.result_notes && (
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink-dim">
+          {setup.result_notes}
+        </p>
+      )}
+
+      {editando && (
+        <ResultForm
+          setup={setup}
+          onGuardado={(nuevo) => {
+            setEditando(false);
+            onActualizado(nuevo);
+          }}
+          onCancelar={() => setEditando(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ResultForm({ setup, onGuardado, onCancelar }) {
+  const esCorreccion = setup.outcome != null;
+  const [outcome, setOutcome] = useState(setup.outcome ?? null);
+  const [pnl, setPnl] = useState(setup.pnl_net == null ? "" : String(Number(setup.pnl_net)));
+  const [notas, setNotas] = useState(setup.result_notes ?? "");
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState(null);
+
+  const pnlTexto = pnl.trim();
+  const pnlValido = pnlTexto === "" || Number.isFinite(Number(pnlTexto));
+  const puedeGuardar = outcome !== null && pnlValido && !guardando;
+
+  async function guardar() {
+    setGuardando(true);
+    setError(null);
+    try {
+      const cuerpo = {
+        outcome,
+        pnl_net: pnlTexto === "" ? null : pnlTexto,
+        notes: notas.trim() === "" ? null : notas.trim(),
+      };
+      const nuevo = esCorreccion
+        ? await updateSetupResult(setup.id, cuerpo)
+        : await registerSetupResult(setup.id, cuerpo);
+      onGuardado(nuevo);
+    } catch (fallo) {
+      if (fallo.isAborted) return;
+      setError(fallo);
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded border border-line bg-surface px-3 py-3">
+      <div className="flex flex-wrap gap-2">
+        {["WIN", "LOSS", "BREAKEVEN"].map((codigo) => {
+          const activa = outcome === codigo;
+          return (
+            <button
+              key={codigo}
+              type="button"
+              onClick={() => setOutcome(codigo)}
+              aria-pressed={activa}
+              className={`rounded border px-3 py-1.5 text-sm transition-colors ${
+                activa
+                  ? CLASE_OUTCOME[codigo]
+                  : "border-line text-ink-dim hover:border-ink-faint hover:text-ink"
+              }`}
+            >
+              {ETIQUETA_OUTCOME[codigo]}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wider text-ink-faint">
+            PnL neto (opcional, puede ser negativo)
+          </span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={pnl}
+            onChange={(e) => setPnl(e.target.value)}
+            placeholder="-25.75"
+            className={`mt-1 w-full rounded border bg-base px-3 py-2 text-sm text-ink tabular-nums outline-none focus:border-ink-faint ${
+              pnlValido ? "border-line" : "border-short/60"
+            }`}
+          />
+          {!pnlValido && (
+            <span className="mt-1 block text-xs text-short">No es un número válido.</span>
+          )}
+        </label>
+
+        <label className="block">
+          <span className="text-[11px] uppercase tracking-wider text-ink-faint">
+            Notas de cierre (opcional)
+          </span>
+          <input
+            type="text"
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            maxLength={2000}
+            placeholder="Cerró en el stop, salida anticipada…"
+            className="mt-1 w-full rounded border border-line bg-base px-3 py-2 text-sm text-ink outline-none focus:border-ink-faint"
+          />
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={guardar}
+          disabled={!puedeGuardar}
+          className="rounded border border-ink px-3 py-1.5 text-sm text-ink transition-colors hover:bg-raised disabled:cursor-not-allowed disabled:border-line disabled:text-ink-faint"
+        >
+          {guardando ? "Guardando…" : esCorreccion ? "Guardar corrección" : "Guardar resultado"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          className="text-xs text-ink-faint transition-colors hover:text-ink"
+        >
+          Cancelar
+        </button>
+        {outcome === null && (
+          <span className="text-xs text-ink-faint">Elige cómo terminó.</span>
+        )}
+      </div>
+
+      {error && (
+        <div className="mt-3 rounded border border-short/40 bg-short-deep/30 px-3 py-2">
+          <div className="text-xs text-short">{error.code}</div>
+          <div className="mt-0.5 text-sm leading-relaxed text-ink">{error.message}</div>
+        </div>
+      )}
+    </div>
+  );
+}

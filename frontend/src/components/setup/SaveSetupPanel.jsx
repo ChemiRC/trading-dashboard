@@ -19,7 +19,7 @@ import { createSetup } from "../../api/setups.js";
 const VACIO = { symbol: "", timeframe: "", price: "", notes: "" };
 
 /** Temporalidades habituales; el campo sigue siendo libre por si usa otra. */
-const TIMEFRAMES = ["15m", "1H", "4H", "1D", "1W"];
+const TIMEFRAMES = ["1m", "3m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"];
 
 function Campo({ etiqueta, children, pista }) {
   return (
@@ -36,7 +36,7 @@ function Campo({ etiqueta, children, pista }) {
 const CLASE_INPUT =
   "mt-1 w-full rounded border border-line bg-base px-3 py-2 text-sm text-ink outline-none focus:border-ink-faint";
 
-export default function SaveSetupPanel({ selections, completo, decision }) {
+export default function SaveSetupPanel({ selections, completo, decision, onVerHistorico }) {
   const [campos, setCampos] = useState(VACIO);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState(null);
@@ -201,8 +201,20 @@ export default function SaveSetupPanel({ selections, completo, decision }) {
 
         {guardado && (
           <div className="mt-3 rounded border border-long/40 bg-long-deep/30 px-3 py-2.5">
-            <div className="text-sm text-long">
-              ✓ Setup guardado · {guardado.decision === "NO_TRADE" ? "NO TRADE" : guardado.decision}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <span className="text-sm text-long">
+                ✓ Setup guardado ·{" "}
+                {guardado.decision === "NO_TRADE" ? "NO TRADE" : guardado.decision}
+              </span>
+              {onVerHistorico && (
+                <button
+                  type="button"
+                  onClick={onVerHistorico}
+                  className="text-xs text-long underline-offset-2 hover:underline"
+                >
+                  Ver en el histórico →
+                </button>
+              )}
             </div>
             <div className="mt-1 text-xs text-ink-dim">
               {guardado.symbol}

@@ -16,7 +16,7 @@ import SaveSetupPanel from "./SaveSetupPanel.jsx";
  * quien monte el formulario decide qué pintar con eso -- hoy el Decision
  * Panel, el Confluence Score y el Permission Panel de `SetupEvaluation.jsx`.
  */
-export default function EvaluationForm({ onResult }) {
+export default function EvaluationForm({ onResult, onVerHistorico }) {
   const [estado, setEstado] = useState("cargando"); // cargando | ok | error
   const [catalogo, setCatalogo] = useState(null);
   const [errorCatalogo, setErrorCatalogo] = useState(null);
@@ -141,7 +141,12 @@ export default function EvaluationForm({ onResult }) {
         </ul>
       </section>
 
-      <SaveSetupPanel selections={selections} completo={completo} decision={decision} />
+      <SaveSetupPanel
+        selections={selections}
+        completo={completo}
+        decision={decision}
+        onVerHistorico={onVerHistorico}
+      />
     </div>
   );
 }

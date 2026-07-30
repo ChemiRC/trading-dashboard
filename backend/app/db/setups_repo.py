@@ -107,7 +107,8 @@ _SQL_LISTA_BASE = """
     select id, evaluated_at, symbol, timeframe, price_at_evaluation,
            raw_balance, direction, decision, no_trade_reason,
            classification_code, classification_label, notes,
-           trade_id, pnl_net, outcome
+           trade_id, pnl_net, outcome,
+           result_notes, trade_source, result_created_at, result_updated_at
     from v_setups_with_outcome
 """
 
@@ -161,6 +162,80 @@ def list_setups(
         filas = cur.fetchall()
 
     return filas, total
+
+
+# ---------------------------------------------------------------------------
+#  Resultado manual
+#
+#  Una fila en `trades` con source='manual', la estructura que el esquema ya
+#  dejaba preparada para la Fase 2. `opened_at`/`closed_at` quedan a NULL a
+#  propósito: el trader registra a posteriori y no sabemos cuándo cerró de
+#  verdad — `created_at` ya dice cuándo se registró, y escribir un `now()` en
+#  `closed_at` sería inventar un dato que Bybit sí traerá de verdad.
+# ---------------------------------------------------------------------------
+
+#: Contrato → columna. Las notas de cierre van a `exit_reason`, el campo
+#: subjetivo que el esquema reserva para "por qué/cómo salió".
+_COLUMNAS_RESULTADO = {
+    "outcome": "manual_outcome",
+    "pnl_net": "pnl_net",
+    "notes": "exit_reason",
+}
+
+
+def save_result(
+    conn: Connection,
+    setup_id: UUID,
+    *,
+    symbol: str,
+    side: str,
+    outcome: str,
+    pnl_net: Any = None,
+    notes: str | None = None,
+) -> dict[str, Any]:
+    """Registra el desenlace. El UNIQUE de `trades.setup_id` impide un segundo."""
+    with conn.transaction():
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                insert into trades (setup_id, symbol, side, manual_outcome,
+                                    pnl_net, exit_reason, source)
+                values (%s, %s, %s, %s, %s, %s, 'manual')
+                returning id
+                """,
+                [str(setup_id), symbol, side, outcome, pnl_net, notes],
+            )
+            return cur.fetchone()
+
+
+def update_result(
+    conn: Connection, setup_id: UUID, changes: dict[str, Any]
+) -> str | None:
+    """Corrige un resultado registrado a mano.
+
+    Devuelve `"ok"` si actualizó, `"bybit"` si el trade vinculado vino del
+    exchange (esos no se editan desde aquí: la resincronización de la Fase 2
+    los pisaría), y `None` si el setup no tiene resultado que corregir.
+    """
+    sets = ", ".join(
+        f"{_COLUMNAS_RESULTADO[campo]} = %({campo})s" for campo in changes
+    )
+    with conn.transaction():
+        with conn.cursor() as cur:
+            cur.execute(
+                f"update trades set {sets} "
+                "where setup_id = %(setup_id)s and source = 'manual' "
+                "returning id",
+                {**changes, "setup_id": str(setup_id)},
+            )
+            if cur.fetchone() is not None:
+                return "ok"
+
+            cur.execute(
+                "select source from trades where setup_id = %s", [str(setup_id)]
+            )
+            fila = cur.fetchone()
+            return "bybit" if fila is not None else None
 
 
 def get_setup(conn: Connection, setup_id: UUID) -> dict[str, Any] | None:

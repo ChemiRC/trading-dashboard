@@ -15,6 +15,8 @@ from app.models import (
     SetupCreatedOut,
     SetupDetail,
     SetupPage,
+    SetupResultIn,
+    SetupResultPatch,
     SetupSummary,
 )
 from app.scoring import evaluate
@@ -125,3 +127,78 @@ def get_setup(setup_id: UUID, conn: Conn) -> SetupDetail:
             status.HTTP_404_NOT_FOUND, detail=f"No existe el setup {setup_id}."
         )
     return SetupDetail.from_row(fila)
+
+
+# ---------------------------------------------------------------------------
+#  Resultado manual
+#
+#  Ninguno de estos dos endpoints puede tocar la evaluación original: los
+#  contratos no traen selecciones ni balance, y las columnas de `setups`
+#  quedaron congeladas al guardar. Aquí solo se añade (o corrige) el desenlace.
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{setup_id}/result",
+    response_model=SetupDetail,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar a mano cómo terminó el setup",
+)
+def register_result(setup_id: UUID, body: SetupResultIn, conn: Conn) -> SetupDetail:
+    """Crea la fila de `trades` (source='manual') vinculada al setup.
+
+    Es el adelanto manual de la Fase 2: cuando llegue la sincronización con
+    Bybit, sus trades convivirán con estas distinguidas por `source`, y el
+    UNIQUE de `trades.setup_id` —que aquí convierte un doble registro en un
+    409— es el mismo que le impedirá a la sincronización duplicar un setup ya
+    resuelto.
+    """
+    setup = setups_repo.get_setup(conn, setup_id)
+    if setup is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail=f"No existe el setup {setup_id}."
+        )
+    # Un NO TRADE es la decisión de quedarse fuera: no hay operación cuyo
+    # desenlace registrar. Si el trader operó igualmente, eso es una operación
+    # improvisada — trade sin setup — y llegará por la vía de la Fase 2.
+    if setup["decision"] == "NO_TRADE":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="Este setup salió NO TRADE: no hay operación cuyo resultado "
+            "registrar. Una operación hecha al margen del veredicto es una "
+            "operación improvisada y se registrará como trade sin setup.",
+        )
+
+    setups_repo.save_result(
+        conn,
+        setup_id,
+        symbol=setup["symbol"],
+        side=setup["decision"],
+        outcome=body.outcome,
+        pnl_net=body.pnl_net,
+        notes=body.notes,
+    )
+    return SetupDetail.from_row(setups_repo.get_setup(conn, setup_id))
+
+
+@router.patch(
+    "/{setup_id}/result",
+    response_model=SetupDetail,
+    summary="Corregir un resultado registrado a mano",
+)
+def patch_result(setup_id: UUID, body: SetupResultPatch, conn: Conn) -> SetupDetail:
+    """Errores de captura pasan; corregirlos deja huella en `result_updated_at`."""
+    estado = setups_repo.update_result(conn, setup_id, body.changes())
+
+    if estado is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            detail=f"El setup {setup_id} no tiene resultado registrado que corregir.",
+        )
+    if estado == "bybit":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="El resultado de este setup viene de Bybit: la resincronización "
+            "lo pisaría. Los campos objetivos del exchange no se editan a mano.",
+        )
+    return SetupDetail.from_row(setups_repo.get_setup(conn, setup_id))

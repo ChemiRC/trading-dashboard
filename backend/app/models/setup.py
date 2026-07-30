@@ -1,11 +1,11 @@
-"""Contratos de consulta del histórico de setups."""
+"""Contratos de consulta del histórico de setups y del registro de resultado."""
 
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .evaluation import MENSAJES_NO_TRADE
 
@@ -61,6 +61,14 @@ class SetupSummary(BaseModel):
 class SetupDetail(SetupSummary):
     selections: list[SelectionOut] = Field(default_factory=list)
 
+    #: Del resultado registrado, si lo hay. `result_updated_at` distinto de
+    #: `result_created_at` delata una corrección posterior — errores de
+    #: captura pasan, y la fecha de la última edición debe ser visible.
+    result_notes: str | None = None
+    trade_source: Literal["bybit", "manual"] | None = None
+    result_created_at: datetime | None = None
+    result_updated_at: datetime | None = None
+
     @classmethod
     def from_row(cls, row: dict) -> "SetupDetail":
         return cls(
@@ -80,3 +88,48 @@ class SetupPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+# ---------------------------------------------------------------------------
+#  Registro manual del resultado
+#
+#  Crea (o edita) la fila de `trades` con source='manual' vinculada al setup.
+#  Fíjate en lo que NO hay: nada de la evaluación original. Las selecciones y
+#  el balance quedaron congelados al guardar y este contrato no puede tocarlos
+#  — el valor del sistema depende de que el setup se evaluó ANTES de saber el
+#  resultado, y aquí solo se añade el desenlace.
+# ---------------------------------------------------------------------------
+
+
+class SetupResultIn(BaseModel):
+    """Lo que el trader declara al cerrar: cómo terminó, y opcionalmente cuánto.
+
+    El PnL es opcional a propósito —el trader puede no tener el extracto a
+    mano— pero si viene, el signo manda sobre la declaración y el esquema
+    rechaza contradicciones (`trades_manual_outcome_coherente`).
+    """
+
+    model_config = {"extra": "forbid"}
+
+    outcome: Literal["WIN", "LOSS", "BREAKEVEN"]
+    pnl_net: Decimal | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class SetupResultPatch(BaseModel):
+    """Corrección de un resultado ya registrado. PATCH: solo viaja lo que cambió."""
+
+    model_config = {"extra": "forbid"}
+
+    outcome: Literal["WIN", "LOSS", "BREAKEVEN"] | None = None
+    pnl_net: Decimal | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def _al_menos_un_campo(self):
+        if not self.model_fields_set:
+            raise ValueError("El cuerpo no trae ningun campo que actualizar.")
+        return self
+
+    def changes(self) -> dict:
+        return self.model_dump(exclude_unset=True)

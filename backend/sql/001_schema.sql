@@ -437,6 +437,11 @@ create table if not exists trades (
   funding           numeric(20,8),
   pnl_net           numeric(20,8),
 
+  -- Registro manual (003): lo que el trader declaró cuando no hay PnL del
+  -- que derivar el resultado. La vista solo lo usa como respaldo; si el PnL
+  -- existe, el dato contable manda y el CHECK de abajo impide contradicciones.
+  manual_outcome    text         check (manual_outcome in ('WIN','LOSS','BREAKEVEN')),
+
   -- ---- Subjetivo: solo lo rellena el trader ------------------------------
   entry_reason      text,
   exit_reason       text,
@@ -450,7 +455,16 @@ create table if not exists trades (
   created_at        timestamptz  not null default now(),
   updated_at        timestamptz  not null default now(),
 
-  check (closed_at is null or opened_at is null or closed_at >= opened_at)
+  check (closed_at is null or opened_at is null or closed_at >= opened_at),
+
+  -- Declaración manual y PnL no pueden contradecirse (ver 003).
+  constraint trades_manual_outcome_coherente check (
+    manual_outcome is null
+    or pnl_net is null
+    or (manual_outcome = 'WIN'       and pnl_net > 0)
+    or (manual_outcome = 'LOSS'      and pnl_net < 0)
+    or (manual_outcome = 'BREAKEVEN' and pnl_net = 0)
+  )
 );
 
 drop trigger if exists trades_set_updated_at on trades;
@@ -528,17 +542,26 @@ select
 -- El "campo de resultado nullable" del setup, resuelto como vista en vez de
 -- como columna duplicada: el resultado ya lo sabe `trades`, y una copia en
 -- `setups` sería un dato que se puede quedar desactualizado.
+--
+-- El outcome se deriva del PnL cuando existe (el dato contable manda, venga
+-- de Bybit o tecleado a mano) y de `manual_outcome` como respaldo cuando no:
+-- en el registro manual el PnL es opcional y el trader aún sabe si ganó.
 create or replace view v_setups_with_outcome as
 select
   s.*,
   t.id        as trade_id,
   t.pnl_net,
   case
-    when t.id is null      then null            -- todavía sin resultado
-    when t.pnl_net > 0     then 'WIN'
-    when t.pnl_net < 0     then 'LOSS'
-    else                        'BREAKEVEN'
-  end as outcome
+    when t.id is null          then null            -- todavía sin resultado
+    when t.pnl_net > 0         then 'WIN'
+    when t.pnl_net < 0         then 'LOSS'
+    when t.pnl_net is not null then 'BREAKEVEN'
+    else t.manual_outcome                           -- sin PnL: lo declarado
+  end as outcome,
+  t.exit_reason as result_notes,
+  t.source      as trade_source,
+  t.created_at  as result_created_at,
+  t.updated_at  as result_updated_at
 from setups s
 left join trades t on t.setup_id = s.id;
 

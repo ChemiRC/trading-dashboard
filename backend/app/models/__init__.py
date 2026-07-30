@@ -23,7 +23,14 @@ from .evaluation import (
     SetupCreate,
     SetupCreatedOut,
 )
-from .setup import SelectionOut, SetupDetail, SetupPage, SetupSummary
+from .setup import (
+    SelectionOut,
+    SetupDetail,
+    SetupPage,
+    SetupResultIn,
+    SetupResultPatch,
+    SetupSummary,
+)
 
 __all__ = [
     "CatalogOut",
@@ -43,5 +50,7 @@ __all__ = [
     "SelectionOut",
     "SetupDetail",
     "SetupPage",
+    "SetupResultIn",
+    "SetupResultPatch",
     "SetupSummary",
 ]
