@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
+from app.api.routes import auth as auth_routes
 from app.api.routes import config as config_routes
 from app.api.routes import health as health_routes
 from app.api.routes import setups as setups_routes
@@ -71,13 +72,14 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
     register_error_handlers(app)
 
     app.include_router(health_routes.router)
+    app.include_router(auth_routes.router)
     app.include_router(config_routes.router)
     app.include_router(setups_routes.router)
 

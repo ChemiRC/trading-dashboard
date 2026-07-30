@@ -7,6 +7,7 @@ INSERT en la base de datos, y aparece solo.
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.api.auth import Protegido
 from app.api.deps import Config, Conn, EngineCfg
 from app.db import config_repo
 from app.models import (
@@ -20,7 +21,9 @@ from app.models import (
     ThresholdPatch,
 )
 
-router = APIRouter(prefix="/api/config", tags=["configuracion"])
+router = APIRouter(
+    prefix="/api/config", tags=["configuracion"], dependencies=[Protegido]
+)
 
 
 @router.get("/catalog", response_model=CatalogOut, summary="Todo lo que pinta el formulario")

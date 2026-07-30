@@ -136,9 +136,10 @@ trading-dashboard/
 │   ├── app/
 │   │   ├── adapters/      Vacío: reservado para las fuentes de datos de la Fase 2
 │   │   ├── api/
+│   │   │   ├── auth.py    Contraseña compartida y tokens firmados
 │   │   │   ├── deps.py    Conexión y configuración vigente por petición
 │   │   │   ├── errors.py  Errores internos → respuestas HTTP
-│   │   │   └── routes/    health · config · setups
+│   │   │   └── routes/    health · auth · config · setups
 │   │   ├── core/          Configuración, lectura de variables de entorno
 │   │   ├── db/            Pool y repositorios de PostgreSQL / Supabase
 │   │   ├── models/        Esquemas Pydantic (contratos de entrada y salida)
@@ -152,9 +153,10 @@ trading-dashboard/
 │   ├── public/
 │   ├── src/
 │   │   ├── api/
-│   │   │   ├── client.js  fetch + normalización de errores del backend
+│   │   │   ├── client.js  fetch, token de sesión y errores normalizados
+│   │   │   ├── auth.js    login y logout
 │   │   │   ├── config.js  catálogo, salud y PATCH de configuración
-│   │   │   └── setups.js  evaluar · guardar · histórico
+│   │   │   └── setups.js  evaluar · guardar · histórico · resultado · borrar
 │   │   ├── components/
 │   │   │   ├── decision/
 │   │   │   │   ├── DecisionPanel.jsx     Veredicto y barra de balance
@@ -180,6 +182,7 @@ trading-dashboard/
 │   │   │   ├── format.js  Puntos con signo, color por signo, cifras, fechas
 │   │   │   └── risk.js    Cálculos de riesgo — funciones puras
 │   │   ├── pages/
+│   │   │   ├── Login.jsx            Contraseña compartida
 │   │   │   ├── SetupEvaluation.jsx  Formulario + los tres paneles
 │   │   │   ├── RiskCalculation.jsx  Gestión de riesgo
 │   │   │   ├── SetupHistory.jsx     Histórico con paginación
@@ -235,11 +238,16 @@ para resolver lo que `useState` ya resuelve. Solo la pestaña activa está monta
 cambiar de pestaña desmonta y remonta, así que cada visita al histórico o a
 configuración relee del backend en vez de enseñar una copia vieja.
 
+Por delante de las cuatro hay una quinta pantalla, el **login**: sin token no se
+monta ninguna. No es la comprobación de seguridad —esa la hace el backend, que
+rechaza cualquier `/api/*` sin token válido— sino de interfaz: sin sesión, todo lo
+que se pintase sería una sucesión de 401.
+
 | Pestaña | Qué hace |
 | --- | --- |
 | **Evaluación de setup** | Los 6 indicadores, los tres paneles de decisión y el guardado |
 | **Gestión de riesgo** | R:B, tamaño de posición, pérdida máxima, ratios ATR |
-| **Histórico** | Los setups guardados, su desglose congelado, y el registro manual del resultado |
+| **Histórico** | Los setups guardados, su desglose congelado, el registro manual del resultado y el borrado |
 | **Configuración** | Pesos, puntos, bandas y el semáforo de salud |
 
 `ConnectionCheck` sigue en `pages/` pero **ya no se monta**: cumplió su papel en la
@@ -326,22 +334,63 @@ tercero al que pedirle permiso.
 
 Documentación interactiva completa en `/docs`. Resumen:
 
-| Método  | Ruta                             | Qué hace                                       |
-| ------- | -------------------------------- | ---------------------------------------------- |
-| `GET`   | `/health`                        | El proceso responde. No toca la base de datos. |
-| `GET`   | `/health/db`                     | La BD responde y la configuración es coherente |
-| `GET`   | `/api/config/catalog`            | Indicadores, opciones, umbrales y defaults     |
-| `GET`   | `/api/config/thresholds`         | Solo las bandas de clasificación               |
-| `GET`   | `/api/config/health`             | La vista `v_config_health` + si la Regla B está activa |
-| `PATCH` | `/api/config/indicators/{code}`  | Editar peso, nombre, orden, activo             |
-| `PATCH` | `/api/config/options/{id}`       | Editar etiqueta, puntos, default, activa       |
-| `PATCH` | `/api/config/thresholds/{code}`  | Editar una banda                               |
-| `POST`  | `/api/setups/evaluate`           | Evaluar **sin guardar**                        |
-| `POST`  | `/api/setups`                    | Evaluar **y guardar**                          |
-| `GET`   | `/api/setups`                    | Histórico, con filtros y paginación            |
-| `GET`   | `/api/setups/{id}`               | Un setup con su desglose congelado             |
-| `POST`  | `/api/setups/{id}/result`        | Registrar a mano cómo terminó                  |
-| `PATCH` | `/api/setups/{id}/result`        | Corregir un resultado registrado               |
+| Método  | Ruta                             | Auth | Qué hace                                       |
+| ------- | -------------------------------- | ---- | ---------------------------------------------- |
+| `GET`   | `/health`                        | —    | El proceso responde. No toca la base de datos. |
+| `GET`   | `/health/db`                     | —    | La BD responde y la configuración es coherente |
+| `POST`  | `/auth/login`                    | —    | Canjear la contraseña por un token             |
+| `GET`   | `/api/config/catalog`            | 🔒   | Indicadores, opciones, umbrales y defaults     |
+| `GET`   | `/api/config/thresholds`         | 🔒   | Solo las bandas de clasificación               |
+| `GET`   | `/api/config/health`             | 🔒   | La vista `v_config_health` + si la Regla B está activa |
+| `PATCH` | `/api/config/indicators/{code}`  | 🔒   | Editar peso, nombre, orden, activo             |
+| `PATCH` | `/api/config/options/{id}`       | 🔒   | Editar etiqueta, puntos, default, activa       |
+| `PATCH` | `/api/config/thresholds/{code}`  | 🔒   | Editar una banda                               |
+| `POST`  | `/api/setups/evaluate`           | 🔒   | Evaluar **sin guardar**                        |
+| `POST`  | `/api/setups`                    | 🔒   | Evaluar **y guardar**                          |
+| `GET`   | `/api/setups`                    | 🔒   | Histórico, con filtros y paginación            |
+| `GET`   | `/api/setups/{id}`               | 🔒   | Un setup con su desglose congelado             |
+| `DELETE`| `/api/setups/{id}`               | 🔒   | Borrar un setup del histórico                  |
+| `POST`  | `/api/setups/{id}/result`        | 🔒   | Registrar a mano cómo terminó                  |
+| `PATCH` | `/api/setups/{id}/result`        | 🔒   | Corregir un resultado registrado               |
+
+🔒 = exige `Authorization: Bearer <token>`.
+
+### Autenticación: una contraseña compartida
+
+El dashboard está desplegado en internet y sin nada delante cualquiera con la URL
+podría leerlo y editarlo. La protección es deliberadamente pequeña: **una
+contraseña compartida entre dos personas de confianza**, sin cuentas, sin roles y
+sin registro. Supabase Auth y el multiusuario son Fase 6; montarlos hoy sería
+resolver un problema que no existe.
+
+Cómo funciona:
+
+1. `POST /auth/login` con la contraseña devuelve un **token firmado** con
+   HMAC-SHA256 y 30 días de validez. La contraseña se compara en tiempo
+   constante (`secrets.compare_digest`), nunca con `==`: comparar cadenas byte a
+   byte filtra por el tiempo de respuesta cuántos caracteres se acertaron.
+2. Todo `/api/*` exige `Authorization: Bearer <token>`. Sin él, o con uno
+   caducado o manipulado, responde **401** con el sobre de error de siempre y el
+   código `UNAUTHORIZED`.
+3. `/health` y `/health/db` **se quedan públicos**: no exponen ni un dato del
+   trader y son lo que consulta el health check de Railway, que no tiene forma
+   de autenticarse.
+
+**Sin firmar el token con una librería de JWT.** La construcción es la misma que
+un JWT `HS256` —`payload.firma` en base64url— pero escrita con `hmac` de la
+librería estándar y recortada a lo único que aquí hace falta: una caducidad. De
+paso desaparece la clase de fallos más conocida de JWT, la del algoritmo
+negociable dentro del propio token: aquí el algoritmo está en el código, no en el
+mensaje que manda el cliente.
+
+**Falla cerrado.** `APP_PASSWORD` y `APP_TOKEN_SECRET` no tienen valor por
+defecto. Si faltan, todo `/api/*` responde **503** en vez de quedarse abierto: un
+despliegue al que se le olvidó una variable se vuelve inaccesible, nunca público.
+
+En el frontend el token vive en `localStorage` y lo añade `src/api/client.js` a
+toda petición — un solo sitio, ningún componente lo toca. Si una respuesta llega
+con 401, el propio cliente borra el token y avisa a `App.jsx`, que vuelve al
+login: la sesión caducada se resuelve sola desde el único punto que la conoce.
 
 ### Decisiones de esta capa
 
@@ -414,7 +463,15 @@ Copy-Item backend\.env.example  backend\.env
 Copy-Item frontend\.env.example frontend\.env
 ```
 
-Después rellena `backend/.env` con las credenciales de Supabase.
+Después rellena `backend/.env` con las credenciales de Supabase y con las dos
+variables de autenticación —sin ellas el backend arranca, pero todo `/api/*`
+responde 503—:
+
+```powershell
+# La contraseña la eliges tú; el secreto se genera, no se inventa.
+openssl rand -hex 32     # → APP_TOKEN_SECRET
+```
+
 `frontend/.env` solo necesita la URL del backend.
 
 ### Base de datos
@@ -446,17 +503,25 @@ Disponible en `http://localhost:8000` · documentación interactiva en `/docs`.
 El arranque **espera a tener conexión** con la base de datos. Si las credenciales
 están mal, falla ahí y no en la primera petición del trader.
 
-Tests (74: 41 del motor, 33 de la API):
+Tests (105: 41 del motor, 10 de los tokens, 54 de la API):
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-Los del motor son puros y no necesitan nada. Los de la API hablan con la base de
-datos real —las reglas de peso, solape y coherencia **viven en el esquema**, y un
-mock las daría todas por buenas— y se saltan solos si no hay `.env`. Todo lo que
-escriben usa el símbolo `ZZTEST` y se borra al terminar.
+Los del motor y los de los tokens son puros y no necesitan nada —el reloj entra
+por parámetro, así que la caducidad de 30 días se prueba de verdad en vez de
+esperarla—. Los de la API hablan con la base de datos real —las reglas de peso,
+solape y coherencia **viven en el esquema**, y un mock las daría todas por
+buenas— y se saltan solos si no hay `.env`. Todo lo que escriben usa el símbolo
+`ZZTEST` y se borra al terminar.
+
+La suite se autentica sola: inyecta `APP_PASSWORD` y `APP_TOKEN_SECRET` por
+entorno y obtiene el token del endpoint real de login, no fabricándolo a mano.
+La cabecera va por defecto en el cliente de pruebas, así que los tests que ya
+existían no cambiaron ni una línea, y `anon_client` —sin token— es el que
+comprueba que lo protegido está protegido.
 
 ### Despliegue del backend en Railway
 
@@ -485,6 +550,8 @@ commitean):
 | Variable | Obligatoria | Nota |
 | --- | --- | --- |
 | `DATABASE_URL` | **Sí** | El pooler de Supabase. Usa el *transaction pooler* (puerto 6543): los procesos de Railway son efímeros y el *session pooler* agota sus conexiones. |
+| `APP_PASSWORD` | **Sí** | La contraseña compartida. Sin ella, todo `/api/*` responde 503 — la aplicación queda inaccesible, nunca abierta. |
+| `APP_TOKEN_SECRET` | **Sí** | Con qué se firman los tokens. **Genéralo, no lo inventes**: `openssl rand -hex 32`. Cambiarlo invalida todas las sesiones abiertas, que es lo que quieres si sospechas que se filtró un token. |
 | `CORS_ORIGINS` | **Sí, en la práctica** | Por defecto es `http://localhost:5173`. Sin cambiarla al dominio real de Vercel, el navegador bloquea toda petición del frontend en producción. |
 | `APP_ENV` | Recomendada | `production` apaga `/docs` y `/openapi.json`. |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | No todavía | Reservadas para el Storage de la Fase 2; el backend arranca sin ellas. |
@@ -552,9 +619,15 @@ Reglas no negociables del proyecto:
    retiro.
 5. **El sistema nunca ejecuta órdenes.** No es una limitación temporal, es una decisión
    de diseño permanente.
+6. **Nada de `/api/*` es público.** Una contraseña compartida protege todo lo que
+   toca datos; solo `/health` y `/health/db` quedan abiertos, y no exponen ninguno.
+   Si faltan `APP_PASSWORD` o `APP_TOKEN_SECRET`, la API se cierra (503) en vez de
+   abrirse. Ver [Autenticación](#autenticación-una-contraseña-compartida).
 
 Si alguna credencial se commitea por accidente: rótala en Supabase o Bybit
 inmediatamente. Borrarla del repositorio no basta, queda en el historial de git.
+Lo mismo vale para `APP_PASSWORD` y `APP_TOKEN_SECRET`: cambiar el secreto en
+Railway invalida al instante todas las sesiones abiertas.
 
 ---
 

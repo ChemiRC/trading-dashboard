@@ -133,18 +133,74 @@ def sel(**overrides: str) -> dict[str, str]:
 SYMBOL_PRUEBAS = "ZZTEST"
 
 
-@pytest.fixture(scope="session")
-def client():
-    """Cliente HTTP con el lifespan de la app activo.
+#: Credenciales de la suite. Se inyectan por entorno —que en pydantic-settings
+#: gana al `.env`— para no depender de lo que cada quien tenga configurado en
+#: local ni de que en CI exista un `.env` en absoluto.
+PASSWORD_PRUEBAS = "zztest-password"
+SECRETO_PRUEBAS = "zztest-secreto-de-firma-solo-para-la-suite"
 
-    De sesión: abrir y cerrar el pool contra Supabase en cada test multiplicaría
-    por cien el tiempo de la suite sin comprobar nada más.
+
+@pytest.fixture(scope="session")
+def auth_env():
+    """Configura la autenticación de la suite y limpia la caché de settings.
+
+    `get_settings` está cacheada con `lru_cache`: sin vaciarla, la app leería
+    la configuración que se hubiera resuelto antes de tocar el entorno.
     """
+    import os
+
+    from app.core import get_settings
+
+    previos = {
+        "APP_PASSWORD": os.environ.get("APP_PASSWORD"),
+        "APP_TOKEN_SECRET": os.environ.get("APP_TOKEN_SECRET"),
+    }
+    os.environ["APP_PASSWORD"] = PASSWORD_PRUEBAS
+    os.environ["APP_TOKEN_SECRET"] = SECRETO_PRUEBAS
+    get_settings.cache_clear()
+
+    yield
+
+    for clave, valor in previos.items():
+        if valor is None:
+            os.environ.pop(clave, None)
+        else:
+            os.environ[clave] = valor
+    get_settings.cache_clear()
+
+
+@pytest.fixture(scope="session")
+def anon_client(auth_env):
+    """Cliente **sin** token, para comprobar que lo protegido está protegido."""
     from fastapi.testclient import TestClient
 
     from app.main import app
 
     with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture(scope="session")
+def client(anon_client):
+    """Cliente HTTP autenticado, con el lifespan de la app activo.
+
+    De sesión: abrir y cerrar el pool contra Supabase en cada test multiplicaría
+    por cien el tiempo de la suite sin comprobar nada más.
+
+    El token se obtiene del endpoint real de login, no fabricándolo a mano: así
+    la suite entera depende de que el login funcione de verdad, y las decenas
+    de tests que ya existían siguen escritos igual —la cabecera va por defecto
+    en el cliente, no en cada llamada—.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    r = anon_client.post("/auth/login", json={"password": PASSWORD_PRUEBAS})
+    assert r.status_code == 200, f"El login de la suite fallo: {r.text}"
+    token = r.json()["token"]
+
+    with TestClient(app, headers={"Authorization": f"Bearer {token}"}) as c:
         yield c
 
 

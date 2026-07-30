@@ -129,11 +129,22 @@ async def _db_error(request: Request, exc: psycopg.OperationalError) -> JSONResp
     )
 
 
+#: Los estados que el cliente trata de forma distinta merecen un código propio;
+#: el resto comparten `HTTP_ERROR`. El 401 es el que dispara el vuelta-al-login
+#: del frontend, y el 503 distingue "no configurado" de "credenciales mal".
+_CODIGOS_HTTP = {
+    status.HTTP_401_UNAUTHORIZED: "UNAUTHORIZED",
+    status.HTTP_503_SERVICE_UNAVAILABLE: "AUTH_NOT_CONFIGURED",
+}
+
+
 async def _http_error(request: Request, exc: HTTPException) -> JSONResponse:
     """Los 404 y demás `HTTPException` de las rutas, en el sobre común."""
     return JSONResponse(
         status_code=exc.status_code,
-        content=_payload("HTTP_ERROR", str(exc.detail)),
+        content=_payload(
+            _CODIGOS_HTTP.get(exc.status_code, "HTTP_ERROR"), str(exc.detail)
+        ),
         headers=getattr(exc, "headers", None),
     )
 

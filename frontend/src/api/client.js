@@ -17,6 +17,49 @@ export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
 
+/**
+ * Sesión: el token vive aquí y en `localStorage`, y en ningún componente.
+ *
+ * `localStorage` y no una cookie porque el frontend y el backend viven en
+ * dominios distintos (Vercel y Railway): una cookie de sesión entre dominios
+ * exigiría `SameSite=None` y coordinar dominios, y a cambio de esa complejidad
+ * la ganancia real sería pequeña — la protección contra XSS que da `HttpOnly`
+ * importa cuando hay algo que robar, y aquí solo hay un token de 30 días de
+ * una herramienta de dos personas.
+ */
+const CLAVE_TOKEN = "trading-dashboard.token";
+
+//: Quien quiera enterarse de que la sesión se cayó (el App, para volver al
+//: login) se suscribe aquí. Es un solo oyente porque solo hay una raíz.
+let alPerderSesion = null;
+
+export function getToken() {
+  try {
+    return localStorage.getItem(CLAVE_TOKEN);
+  } catch {
+    // Modo privado de algunos navegadores: sin persistencia, pero la sesión
+    // sigue funcionando en memoria hasta que se recargue la página.
+    return null;
+  }
+}
+
+export function setToken(token) {
+  try {
+    if (token) localStorage.setItem(CLAVE_TOKEN, token);
+    else localStorage.removeItem(CLAVE_TOKEN);
+  } catch {
+    /* sin persistencia; no es motivo para romper el login */
+  }
+}
+
+export function clearToken() {
+  setToken(null);
+}
+
+export function onSessionLost(callback) {
+  alPerderSesion = callback;
+}
+
 /** Códigos que fabrica el cliente; el resto vienen del backend tal cual. */
 export const CLIENT_ERROR_CODES = {
   /** No hubo respuesta: backend caído, URL mal, o CORS bloqueando. */
@@ -109,6 +152,8 @@ export async function request(path, options = {}) {
   const cancelaExterna = () => controller.abort();
   signal?.addEventListener("abort", cancelaExterna, { once: true });
 
+  const token = getToken();
+
   let response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -116,6 +161,8 @@ export async function request(path, options = {}) {
       headers: {
         Accept: "application/json",
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        // El token se añade aquí y solo aquí: ningún componente lo toca.
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: controller.signal,
@@ -162,6 +209,14 @@ export async function request(path, options = {}) {
     } catch {
       cuerpo = null;
     }
+  }
+
+  // Sesión caída: da igual si el token faltaba, caducó o venía manipulado —la
+  // reacción es la misma. Se borra aquí, en el único sitio que lo guarda, para
+  // que ninguna pantalla se quede reintentando con un token que ya no vale.
+  if (response.status === 401) {
+    clearToken();
+    alPerderSesion?.();
   }
 
   if (!response.ok) throw errorFromResponse(response, cuerpo);

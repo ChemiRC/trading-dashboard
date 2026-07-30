@@ -43,6 +43,15 @@ class Settings(BaseSettings):
     #: Orígenes permitidos por CORS, separados por comas.
     cors_origins: str = "http://localhost:5173"
 
+    # --- Autenticación -------------------------------------------------------
+    #: Contraseña compartida y secreto con el que se firman los tokens.
+    #: **Sin valor por defecto a propósito**: un default convertiría un olvido
+    #: en el despliegue en una API abierta con una contraseña conocida. Vacías
+    #: significa "sin configurar", y sin configurar todo `/api/*` responde 503.
+    #: Generar el secreto con `openssl rand -hex 32`, nunca a mano.
+    app_password: str = ""
+    app_token_secret: str = ""
+
     #: REGLA B — confirmada por el trader y activa por defecto.
     #: Sigue siendo un interruptor, y no una constante cableada, porque apagarla
     #: es la única forma de medir cuánto filtra: se pone a false y se compara el

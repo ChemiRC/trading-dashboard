@@ -493,3 +493,107 @@ def test_el_registro_no_puede_tocar_la_evaluacion(client, todo_alcista):
     detalle = client.get(f"/api/setups/{setup_id}").json()
     assert detalle["raw_balance"] == 100
     assert len(detalle["selections"]) == 6
+
+
+# --- Borrado -----------------------------------------------------------------
+
+
+def test_borrar_un_setup(client, todo_alcista):
+    setup_id = _setup_long(client, todo_alcista)
+
+    r = client.delete(f"/api/setups/{setup_id}")
+    assert r.status_code == 204
+    assert client.get(f"/api/setups/{setup_id}").status_code == 404
+
+
+def test_borrar_arrastra_el_resultado_manual(client, todo_alcista):
+    """La trade manual solo existe como resultado del setup: se va con él."""
+    setup_id = _setup_long(client, todo_alcista)
+    client.post(f"/api/setups/{setup_id}/result", json={"outcome": "WIN"})
+
+    assert client.delete(f"/api/setups/{setup_id}").status_code == 204
+    # Y el hueco no queda como una operación improvisada en el histórico.
+    pagina = client.get("/api/setups", params={"symbol": SYMBOL}).json()
+    assert all(s["id"] != setup_id for s in pagina["items"])
+
+
+def test_borrar_un_setup_inexistente_es_404(client):
+    assert client.delete(f"/api/setups/{uuid.uuid4()}").status_code == 404
+
+
+# --- Autenticación -----------------------------------------------------------
+
+
+def test_sin_token_el_catalogo_es_401(anon_client):
+    r = anon_client.get("/api/config/catalog")
+    assert r.status_code == 401
+    assert r.json()["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_sin_token_los_setups_son_401(anon_client):
+    assert anon_client.get("/api/setups").status_code == 401
+    assert anon_client.post("/api/setups", json={}).status_code == 401
+    assert anon_client.delete(f"/api/setups/{uuid.uuid4()}").status_code == 401
+
+
+def test_con_token_el_catalogo_responde(client):
+    assert client.get("/api/config/catalog").status_code == 200
+
+
+def test_health_no_pide_token(anon_client):
+    """Railway comprueba /health y no tiene forma de autenticarse."""
+    assert anon_client.get("/health").status_code == 200
+    assert anon_client.get("/health/db").status_code == 200
+
+
+def test_login_con_password_incorrecta_es_401(anon_client):
+    r = anon_client.post("/auth/login", json={"password": "no-es-la-buena"})
+    assert r.status_code == 401
+    # Sin pistas: ni "casi", ni intentos restantes, ni qué falló exactamente.
+    assert r.json()["error"]["message"] == "Contrasena incorrecta."
+
+
+def test_login_correcto_devuelve_token_utilizable(anon_client):
+    from tests.conftest import PASSWORD_PRUEBAS
+
+    r = anon_client.post("/auth/login", json={"password": PASSWORD_PRUEBAS})
+    assert r.status_code == 200
+    token = r.json()["token"]
+    assert r.json()["expires_in"] > 0
+
+    ok = anon_client.get(
+        "/api/config/catalog", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert ok.status_code == 200
+
+
+def test_token_manipulado_es_401(anon_client):
+    from tests.conftest import PASSWORD_PRUEBAS
+
+    token = anon_client.post(
+        "/auth/login", json={"password": PASSWORD_PRUEBAS}
+    ).json()["token"]
+    payload, _, firma = token.partition(".")
+
+    for falso in (
+        f"{payload}.{'a' * len(firma)}",       # firma cambiada
+        f"{payload}xx.{firma}",                # payload cambiado
+        payload,                               # sin firma
+        "",                                    # vacío
+    ):
+        r = anon_client.get(
+            "/api/config/catalog", headers={"Authorization": f"Bearer {falso}"}
+        )
+        assert r.status_code == 401, f"deberia rechazar: {falso!r}"
+
+
+def test_cabecera_mal_formada_es_401(anon_client):
+    from tests.conftest import PASSWORD_PRUEBAS
+
+    token = anon_client.post(
+        "/auth/login", json={"password": PASSWORD_PRUEBAS}
+    ).json()["token"]
+
+    for cabecera in (token, f"Basic {token}", "Bearer", "Bearer "):
+        r = anon_client.get("/api/config/catalog", headers={"Authorization": cabecera})
+        assert r.status_code == 401, f"deberia rechazar: {cabecera!r}"
