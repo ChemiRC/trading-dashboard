@@ -29,7 +29,7 @@ const RESULTADO = {
   BREAKEVEN: { texto: "b/e", clase: "text-flat" },
 };
 
-export default function SetupList({ items, abiertoId, onToggle, onActualizado }) {
+export default function SetupList({ items, abiertoId, onToggle, onActualizado, onBorrado }) {
   return (
     <ul className="divide-y divide-line">
       {items.map((setup) => {
@@ -82,7 +82,13 @@ export default function SetupList({ items, abiertoId, onToggle, onActualizado })
               </span>
             </button>
 
-            {abierto && <SetupDetail id={setup.id} onActualizado={onActualizado} />}
+            {abierto && (
+              <SetupDetail
+                id={setup.id}
+                onActualizado={onActualizado}
+                onBorrado={onBorrado}
+              />
+            )}
           </li>
         );
       })}

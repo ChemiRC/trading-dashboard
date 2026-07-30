@@ -97,3 +97,14 @@ export function updateSetupResult(setupId, changes, options) {
     ...options,
   });
 }
+
+/**
+ * Borra un setup del histórico, con su desglose y su resultado manual si lo
+ * tenía. Irreversible: no hay papelera ni deshacer.
+ */
+export function deleteSetup(setupId, options) {
+  return request(`/api/setups/${encodeURIComponent(setupId)}`, {
+    method: "DELETE",
+    ...options,
+  });
+}

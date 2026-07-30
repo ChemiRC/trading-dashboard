@@ -118,6 +118,11 @@ export default function SetupHistory() {
                   ),
                 )
               }
+              onBorrado={(borradoId) => {
+                setItems((prev) => prev.filter((s) => s.id !== borradoId));
+                setTotal((prev) => (prev === null ? prev : prev - 1));
+                setAbiertoId(null);
+              }}
             />
             {hayMas && (
               <div className="border-t border-line px-4 py-3">

@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { getSetup, registerSetupResult, updateSetupResult } from "../../api/setups.js";
+import {
+  deleteSetup,
+  getSetup,
+  registerSetupResult,
+  updateSetupResult,
+} from "../../api/setups.js";
 import { conSigno, formatFecha, formatNumber, tono } from "../../lib/format.js";
 
 /**
@@ -36,7 +41,7 @@ const CLASE_OUTCOME = {
   BREAKEVEN: "border-line bg-raised text-flat",
 };
 
-export default function SetupDetail({ id, onActualizado }) {
+export default function SetupDetail({ id, onActualizado, onBorrado }) {
   const [estado, setEstado] = useState("cargando");
   const [setup, setSetup] = useState(null);
   const [error, setError] = useState(null);
@@ -148,6 +153,89 @@ export default function SetupDetail({ id, onActualizado }) {
       )}
 
       <ResultSection setup={setup} onActualizado={actualizado} />
+      <DeleteSection setup={setup} onBorrado={onBorrado} />
+    </div>
+  );
+}
+
+/**
+ * Borrado, en dos pasos y al final del panel a propósito.
+ *
+ * El histórico solo mide algo si está completo: borrar los setups que
+ * salieron mal es la forma más rápida de convertirlo en un álbum de aciertos
+ * y de que la pregunta de la Fase 5 —¿el balance predice algo?— deje de tener
+ * respuesta. Por eso esto no es un icono cómodo en cada fila de la lista sino
+ * un botón discreto, abajo del todo, que además pide confirmación.
+ */
+function DeleteSection({ setup, onBorrado }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [borrando, setBorrando] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function borrar() {
+    setBorrando(true);
+    setError(null);
+    try {
+      await deleteSetup(setup.id);
+      onBorrado?.(setup.id);
+    } catch (fallo) {
+      if (fallo.isAborted) return;
+      setError(fallo);
+      setBorrando(false);
+      setConfirmando(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      {!confirmando && (
+        <button
+          type="button"
+          onClick={() => setConfirmando(true)}
+          className="text-xs text-ink-faint transition-colors hover:text-short"
+        >
+          Borrar este setup
+        </button>
+      )}
+
+      {confirmando && (
+        <div className="rounded border border-short/40 bg-short-deep/20 px-3 py-2.5">
+          <p className="text-sm leading-relaxed text-ink">
+            ¿Borrar este setup? Se va con su desglose
+            {setup.outcome ? " y su resultado registrado" : ""}, y no se puede
+            deshacer.
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-ink-faint">
+            Un histórico al que se le quitan los setups que salieron mal deja de
+            poder medir nada. Bórralo si fue una prueba, un duplicado o un error
+            de captura.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={borrar}
+              disabled={borrando}
+              className="rounded border border-short/60 px-3 py-1.5 text-sm text-short transition-colors hover:bg-short-deep/40 disabled:cursor-not-allowed disabled:text-ink-faint"
+            >
+              {borrando ? "Borrando…" : "Sí, borrar"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmando(false)}
+              className="text-xs text-ink-faint transition-colors hover:text-ink"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-2 rounded border border-short/40 bg-short-deep/30 px-3 py-2">
+          <div className="text-xs text-short">{error.code}</div>
+          <div className="mt-0.5 text-sm leading-relaxed text-ink">{error.message}</div>
+        </div>
+      )}
     </div>
   );
 }

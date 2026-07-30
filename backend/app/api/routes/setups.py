@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 
+from app.api.auth import Protegido
 from app.api.deps import Conn, EngineCfg
 from app.db import setups_repo
 from app.models import (
@@ -21,7 +22,7 @@ from app.models import (
 )
 from app.scoring import evaluate
 
-router = APIRouter(prefix="/api/setups", tags=["setups"])
+router = APIRouter(prefix="/api/setups", tags=["setups"], dependencies=[Protegido])
 
 
 @router.post(
@@ -127,6 +128,25 @@ def get_setup(setup_id: UUID, conn: Conn) -> SetupDetail:
             status.HTTP_404_NOT_FOUND, detail=f"No existe el setup {setup_id}."
         )
     return SetupDetail.from_row(fila)
+
+
+@router.delete(
+    "/{setup_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Borrar un setup del historico",
+)
+def delete_setup(setup_id: UUID, conn: Conn) -> None:
+    """Borra el setup y su desglose.
+
+    Es irreversible y no debería ser rutina: el histórico solo mide algo si es
+    completo, y borrar los setups que salieron mal es la forma más rápida de
+    convertirlo en un álbum de aciertos. Existe para lo que existe de verdad:
+    pruebas, duplicados y errores de captura.
+    """
+    if not setups_repo.delete_setup(conn, setup_id):
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail=f"No existe el setup {setup_id}."
+        )
 
 
 # ---------------------------------------------------------------------------

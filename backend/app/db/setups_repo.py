@@ -238,6 +238,30 @@ def update_result(
             return "bybit" if fila is not None else None
 
 
+def delete_setup(conn: Connection, setup_id: UUID) -> bool:
+    """Borra un setup. Devuelve False si no existía.
+
+    Sus `setup_selections` caen por el ON DELETE CASCADE. La trade vinculada
+    **no** cae —el FK es ON DELETE SET NULL, porque una operación real
+    sobrevive a su setup— así que hay que decidir qué hacer con ella:
+
+    - `source='manual'`: se borra. Solo existía como el resultado de este
+      setup; sin él no representa nada y quedaría como una operación
+      improvisada que nunca ocurrió.
+    - `source='bybit'`: se conserva, y su `setup_id` queda a NULL. Es un dato
+      real del exchange y borrarlo sería perder contabilidad; el hueco lo deja
+      exactamente como lo que el esquema ya llama operación sin setup previo.
+    """
+    with conn.transaction():
+        with conn.cursor() as cur:
+            cur.execute(
+                "delete from trades where setup_id = %s and source = 'manual'",
+                [str(setup_id)],
+            )
+            cur.execute("delete from setups where id = %s", [str(setup_id)])
+            return cur.rowcount > 0
+
+
 def get_setup(conn: Connection, setup_id: UUID) -> dict[str, Any] | None:
     with conn.cursor() as cur:
         cur.execute(f"{_SQL_LISTA_BASE} where id = %s", [str(setup_id)])
