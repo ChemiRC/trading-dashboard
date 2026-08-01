@@ -31,6 +31,13 @@ from .setup import (
     SetupResultPatch,
     SetupSummary,
 )
+from .trade import (
+    RelinkRequest,
+    SyncSummary,
+    TradeListItem,
+    TradeOut,
+    TradePage,
+)
 
 __all__ = [
     "CatalogOut",
@@ -53,4 +60,9 @@ __all__ = [
     "SetupResultIn",
     "SetupResultPatch",
     "SetupSummary",
+    "RelinkRequest",
+    "SyncSummary",
+    "TradeListItem",
+    "TradeOut",
+    "TradePage",
 ]

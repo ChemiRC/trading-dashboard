@@ -131,10 +131,17 @@ async def _db_error(request: Request, exc: psycopg.OperationalError) -> JSONResp
 
 #: Los estados que el cliente trata de forma distinta merecen un código propio;
 #: el resto comparten `HTTP_ERROR`. El 401 es el que dispara el vuelta-al-login
-#: del frontend, y el 503 distingue "no configurado" de "credenciales mal".
+#: del frontend, y el 503 distingue "falta configurar algo en el servidor" de
+#: "las credenciales que mandaste no valen". Lo usan tanto la autenticación
+#: (`APP_PASSWORD`) como la sincronización con Bybit (`BYBIT_API_KEY`), así que
+#: el código es genérico y el mensaje dice cuál de las dos.
+#:
+#: Ojo: el 503 de `DB_UNAVAILABLE` no pasa por aquí -- lo emite su propio
+#: manejador, porque "la base de datos no responde" no es un problema de
+#: configuración y el cliente sí los distingue.
 _CODIGOS_HTTP = {
     status.HTTP_401_UNAUTHORIZED: "UNAUTHORIZED",
-    status.HTTP_503_SERVICE_UNAVAILABLE: "AUTH_NOT_CONFIGURED",
+    status.HTTP_503_SERVICE_UNAVAILABLE: "NOT_CONFIGURED",
 }
 
 

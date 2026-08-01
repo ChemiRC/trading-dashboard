@@ -49,6 +49,12 @@ export function formatQuantity(valor) {
  * de alinearse, que es lo único que se les pide.
  */
 export function formatFecha(iso) {
+  // `null` se comprueba aparte y antes: `new Date(null)` no da fecha inválida
+  // sino la época Unix, así que colarse aquí pintaría "31/12/1969" en vez de
+  // un hueco. Pasa de verdad -- las operaciones registradas a mano no tienen
+  // fecha de apertura, porque el trader las anota a posteriori.
+  if (iso === null || iso === undefined || iso === "") return "—";
+
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   const p = (n) => String(n).padStart(2, "0");

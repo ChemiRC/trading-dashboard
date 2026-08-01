@@ -58,6 +58,21 @@ class Settings(BaseSettings):
     #: histórico. Ver README.
     rule_b_enabled: bool = True
 
+    # --- Bybit (Fase 2) ------------------------------------------------------
+    #: Credenciales de **solo lectura**. La regla no negociable del proyecto es
+    #: que la key nunca tenga permiso de trading ni de retiro: este backend lee
+    #: historial y no ejecuta nada, ni ahora ni nunca.
+    #:
+    #: Sin ellas, `POST /api/trades/sync` responde 503 en vez de fallar a mitad
+    #: de la petición -- el mismo criterio de fallo cerrado que la autenticación.
+    bybit_api_key: str = ""
+    bybit_api_secret: str = ""
+
+    #: Testnet por defecto. Que el valor seguro sea el que sale sin configurar
+    #: nada es deliberado: olvidarse de esta variable apunta a la cuenta de
+    #: pruebas, nunca a la real.
+    bybit_testnet: bool = True
+
     #: Tamaño del pool. Un dashboard de un solo usuario no necesita más.
     db_pool_min_size: int = Field(default=1, ge=1)
     db_pool_max_size: int = Field(default=4, ge=1)

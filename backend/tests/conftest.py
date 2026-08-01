@@ -204,6 +204,26 @@ def client(anon_client):
         yield c
 
 
+@pytest.fixture
+def db():
+    """Conexión directa a la base de datos real, para probar los repositorios.
+
+    Los tests de importación de Bybit necesitan escribir operaciones sin pasar
+    por el exchange —la alternativa sería llamar a la API de verdad desde la
+    suite, que la haría lenta, no determinista y dependiente de una cuenta
+    ajena—. La red se prueba aparte, en `test_bybit.py`, sin tocarla.
+    """
+    import psycopg
+    from psycopg.rows import dict_row
+
+    from app.core import get_settings
+
+    with psycopg.connect(
+        get_settings().database_url, sslmode="require", row_factory=dict_row
+    ) as conn:
+        yield conn
+
+
 @pytest.fixture(scope="session", autouse=True)
 def limpia_setups_de_prueba():
     """Borra los setups y trades del símbolo de pruebas al acabar.
@@ -234,6 +254,47 @@ def limpia_setups_de_prueba():
     borra()
     yield
     borra()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def preserva_marca_de_sincronizacion():
+    """Deja `sync_state` como estaba antes de la suite.
+
+    Los tests de la marca de agua escriben en la fila real de `bybit` —el
+    CHECK de la tabla no admite un `source` de pruebas— así que sin esto una
+    ejecución de la suite dejaría al trader con una marca falsa y su siguiente
+    sincronización miraría 24 horas atrás en vez de los 90 días de la primera.
+    No rompería nada (la deduplicación aguanta), pero le escondería historial.
+    """
+    try:
+        import psycopg
+
+        from app.core import get_settings
+    except ImportError:
+        yield
+        return
+
+    url = get_settings().database_url
+    with psycopg.connect(url, sslmode="require") as conn:
+        fila = conn.execute(
+            "select last_synced_at from sync_state where source = 'bybit'"
+        ).fetchone()
+        original = fila[0] if fila else None
+
+    yield
+
+    with psycopg.connect(url, sslmode="require") as conn:
+        if original is None:
+            conn.execute("delete from sync_state where source = 'bybit'")
+        else:
+            conn.execute(
+                """
+                insert into sync_state (source, last_synced_at) values ('bybit', %s)
+                on conflict (source) do update set last_synced_at = excluded.last_synced_at
+                """,
+                [original],
+            )
+        conn.commit()
 
 
 @pytest.fixture(scope="session")

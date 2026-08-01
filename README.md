@@ -122,9 +122,25 @@ hay que quedarse fuera.
 | Deploy        | Frontend → Vercel · Backend → Railway           |
 
 Toda la dependencia de producción del frontend es React: ni librería de gráficas, ni de
-routing, ni de estado. La barra de balance del Decision Panel son dos `div` con un
-ancho en porcentaje, y no hay nada más que dibujar en la Fase 1. **Recharts entra en la
-Fase 3**, con la equity curve y el drawdown, que sí son gráficas de verdad.
+routing, ni de estado, ni de iconos, ni de WebSockets. La barra de balance son dos
+`div` con un ancho en porcentaje; el libro de órdenes en directo es el `WebSocket` que
+trae el navegador de serie. **Recharts entra en la Fase 3**, con la equity curve y el
+drawdown, que sí son gráficas de verdad.
+
+**`lucide-react` se evaluó y se descartó.** Aquí hacen falta siete iconos estáticos
+—seis de pestaña y las flechas de dirección— y eso son unas pocas rutas
+SVG, no un problema que justifique una dependencia. Viven en `components/ui/Icons.jsx`,
+dibujados con la geometría de lucide (lienzo 24×24, trazo de 2, extremos redondeados) a
+propósito: si algún día hacen falta cuarenta, instalar la librería será sustituir ese
+archivo y nada más.
+
+**El widget de TradingView es la excepción, y conviene decirlo en voz alta.** No es un
+paquete de npm —`package.json` no cambia— pero sí carga un script de
+`s3.tradingview.com` en tiempo de ejecución y pinta dentro de un iframe suyo. Es el
+único código de terceros que corre en esta aplicación, frente a la regla del resto del
+proyecto (fuentes del sistema, sin CDN, sin analítica). Se acepta porque la alternativa
+—dibujar velas, escalas, temporalidades y el RSI a mano— es un producto entero, no un
+componente. No recibe ni un dato del trader: solo un símbolo público.
 
 ---
 
@@ -134,18 +150,20 @@ Fase 3**, con la equity curve y el drawdown, que sí son gráficas de verdad.
 trading-dashboard/
 ├── backend/
 │   ├── app/
-│   │   ├── adapters/      Vacío: reservado para las fuentes de datos de la Fase 2
+│   │   ├── adapters/
+│   │   │   ├── bybit.py       Cliente de solo lectura de la API v5 (firma HMAC)
+│   │   │   └── vinculacion.py Emparejar una operación con el setup que la anticipó
 │   │   ├── api/
 │   │   │   ├── auth.py    Contraseña compartida y tokens firmados
 │   │   │   ├── deps.py    Conexión y configuración vigente por petición
 │   │   │   ├── errors.py  Errores internos → respuestas HTTP
-│   │   │   └── routes/    health · auth · config · setups
+│   │   │   └── routes/    health · auth · config · setups · trades
 │   │   ├── core/          Configuración, lectura de variables de entorno
 │   │   ├── db/            Pool y repositorios de PostgreSQL / Supabase
 │   │   ├── models/        Esquemas Pydantic (contratos de entrada y salida)
 │   │   ├── scoring/       Motor de decisión — función pura, sin dependencias
 │   │   └── main.py        Creación de la app, CORS, lifespan
-│   ├── sql/               Esquema, seed y migraciones  (001 · 002 · 003 · 004 · README)
+│   ├── sql/               Esquema, seed y migraciones  (001 · 002 · 003 · 004 · 005 · README)
 │   ├── tests/             test_engine (puro) · test_api (contra la BD real)
 │   ├── Procfile           Comando de arranque para Railway
 │   └── .env.example
@@ -156,18 +174,29 @@ trading-dashboard/
 │   │   │   ├── client.js  fetch, token de sesión y errores normalizados
 │   │   │   ├── auth.js    login y logout
 │   │   │   ├── config.js  catálogo, salud y PATCH de configuración
-│   │   │   └── setups.js  evaluar · guardar · histórico · resultado · borrar
+│   │   │   ├── setups.js  evaluar · guardar · histórico · resultado · borrar
+│   │   │   └── trades.js  sincronizar · listar · corregir el vínculo
 │   │   ├── components/
 │   │   │   ├── decision/
 │   │   │   │   ├── DecisionPanel.jsx     Veredicto y barra de balance
 │   │   │   │   ├── ConfluenceScore.jsx   Desglose con signo por indicador
 │   │   │   │   └── PermissionPanel.jsx   Clasificación y motivo del NO TRADE
 │   │   │   ├── setup/
-│   │   │   │   ├── EvaluationForm.jsx    Los 6 indicadores; evalúa en vivo
+│   │   │   │   ├── EvaluationForm.jsx    Los 6 indicadores (presentacional)
 │   │   │   │   └── SaveSetupPanel.jsx    Símbolo/TF/precio/notas → guardar
 │   │   │   ├── history/
 │   │   │   │   ├── SetupList.jsx         Tabla del histórico, filas expandibles
 │   │   │   │   └── SetupDetail.jsx       Desglose congelado de un setup
+│   │   │   ├── market/
+│   │   │   │   ├── SymbolPicker.jsx      Selector único de símbolo de la pantalla
+│   │   │   │   ├── TradingViewChart.jsx  Gráfico con RSI (widget incrustado)
+│   │   │   │   ├── OrderBookPressure.jsx Desbalance compra/venta en −1..+1
+│   │   │   │   ├── OrderBookHeatmap.jsx  Volumen por nivel de precio
+│   │   │   │   └── ConnectionStatus.jsx  Estado del WebSocket y antigüedad
+│   │   │   ├── trades/
+│   │   │   │   ├── SyncButton.jsx        Importar de Bybit y su resumen
+│   │   │   │   ├── TradeList.jsx         Tabla de operaciones ejecutadas
+│   │   │   │   └── LinkSetupPicker.jsx   Vincular a mano con un setup
 │   │   │   ├── risk/
 │   │   │   │   └── RiskCalculator.jsx    R:B, tamaño de posición, ATR
 │   │   │   ├── settings/
@@ -175,23 +204,28 @@ trading-dashboard/
 │   │   │   │   ├── ThresholdSettings.jsx Bandas de clasificación
 │   │   │   │   ├── ConfigHealth.jsx      Semáforo de v_config_health + Regla B
 │   │   │   │   └── EditControls.jsx      Campos y barra de guardado
-│   │   │   └── ui/        Reservado para componentes reutilizables (vacío)
+│   │   │   └── ui/        AnimatedNumber · BalanceBar · Spinner · Toast · Icons
 │   │   ├── hooks/
+│   │   │   ├── useEvaluacion.js    Catálogo + selecciones + veredicto (sobre las pestañas)
+│   │   │   ├── useOrderBook.js     WebSocket de Bybit: conectar, reconectar, vigilar
 │   │   │   └── useConfigDrafts.js  Borradores por fila de la configuración
 │   │   ├── lib/
-│   │   │   ├── format.js  Puntos con signo, color por signo, cifras, fechas
-│   │   │   └── risk.js    Cálculos de riesgo — funciones puras
+│   │   │   ├── format.js     Puntos con signo, color por signo, cifras, fechas
+│   │   │   ├── orderbook.js  Snapshot + deltas, presión y niveles — funciones puras
+│   │   │   └── risk.js       Cálculos de riesgo — funciones puras
 │   │   ├── pages/
 │   │   │   ├── Login.jsx            Contraseña compartida
-│   │   │   ├── SetupEvaluation.jsx  Formulario + los tres paneles
+│   │   │   ├── Mercado.jsx          Precio, RSI y libro de órdenes en directo
+│   │   │   ├── Evaluacion.jsx       Formulario + veredicto + guardado, juntos
 │   │   │   ├── RiskCalculation.jsx  Gestión de riesgo
 │   │   │   ├── SetupHistory.jsx     Histórico con paginación
+│   │   │   ├── Trades.jsx           Operaciones ejecutadas y sincronización
 │   │   │   ├── Settings.jsx         Configuración de la estrategia
 │   │   │   └── ConnectionCheck.jsx  Diagnóstico (no montada; ver abajo)
-│   │   ├── App.jsx        Pestañas entre las cuatro pantallas
+│   │   ├── App.jsx        Pestañas entre las seis pantallas
 │   │   ├── main.jsx       Punto de entrada de React
 │   │   └── index.css      Tokens de diseño (@theme de Tailwind)
-│   ├── tests/             test_risk.mjs — cálculos de riesgo, sin framework
+│   ├── tests/             test_risk.mjs · test_orderbook.mjs — sin framework
 │   ├── vite.config.js
 │   └── .env.example
 ├── .gitignore
@@ -205,12 +239,12 @@ trading-dashboard/
   clasificación y el desglose. Nada más: no toca la base de datos, no sabe qué es HTTP.
   Así se puede testear con una tabla de casos y, en la Fase 5, reusarlo tal cual para
   hacer backtesting.
-- **`adapters/` está reservado, todavía vacío.** Hoy los valores de los indicadores
-  llegan de un formulario manual y entran directamente por los modelos Pydantic, sin
-  capa intermedia: en la Fase 1 no hay dos orígenes que abstraer, y una interfaz con
-  una sola implementación es una indirección que no paga su precio. La carpeta existe
-  para que la Fase 2 —API de Bybit, detección automática— tenga sitio evidente donde
-  ir, no porque ya haya nada dentro.
+- **`adapters/` traduce lo de fuera antes de que llegue al resto.** Los valores de
+  los indicadores siguen entrando de un formulario manual, sin capa intermedia —una
+  interfaz con una sola implementación es una indirección que no paga su precio— pero
+  el historial de Bybit sí pasa por aquí. Lo que sale de `adapters/` ya tiene la forma
+  de nuestras tablas: ni los repositorios ni las rutas saben qué aspecto tiene un JSON
+  del exchange. El día que haya un segundo origen, lo que cambia es este paquete.
 - **`models/` separado de las rutas.** Los esquemas Pydantic son el contrato entre
   frontend y backend, y sirven de documentación viva en `/docs`.
 - **`src/api/` es el único que hace `fetch`.** Y el único que sabe qué forma tiene un
@@ -230,29 +264,184 @@ Tema oscuro, tipografía monoespaciada en todo el dashboard. Lo segundo no es es
 las cifras quedan alineadas en columna y `+30` / `−30` ocupan lo mismo, que es lo que
 hace comparable el desglose de un vistazo.
 
-### Las cuatro pantallas
+### Las seis pantallas
 
 Se navega entre ellas con pestañas y estado local, **sin librería de routing**: ninguna
 necesita URL propia ni botón de atrás, así que un router sería una dependencia entera
 para resolver lo que `useState` ya resuelve. Solo la pestaña activa está montada:
-cambiar de pestaña desmonta y remonta, así que cada visita al histórico o a
-configuración relee del backend en vez de enseñar una copia vieja.
+cambiar de pestaña desmonta y remonta, así que cada visita al histórico, a operaciones
+o a configuración relee del backend en vez de enseñar una copia vieja.
 
-Por delante de las cuatro hay una quinta pantalla, el **login**: sin token no se
-monta ninguna. No es la comprobación de seguridad —esa la hace el backend, que
+**La evaluación en curso es la excepción y vive por encima de las pestañas**, en el hook
+`useEvaluacion`. Si viviera dentro de «Evaluación» se perdería en cuanto el trader
+saliera de ella: marcaría sus seis opciones, iría a Mercado a mirar el libro o a Riesgo
+a calcular el tamaño, y al volver se encontraría el formulario en blanco. Colgado del
+componente que envuelve a todas, `/evaluate` se dispara en el momento de marcar la
+opción y el veredicto sigue ahí al volver, sin recalcular ni repreguntar el catálogo.
+
+**Describir y decidir van en la misma pantalla.** El formulario a la izquierda, el
+veredicto a la derecha, actualizándose con cada opción que se marca. Estuvo partido en
+dos pestañas —«Indicadores» y «Decisión»— y se volvió a juntar: obligaba a cambiar de
+pantalla para ver el efecto de cada respuesta, y en una herramienta cuyo argumento es
+*«marca y mira lo que sale»* eso es un clic de más entre la causa y su consecuencia.
+
+El precio de juntarlas está asumido y conviene decirlo: **el balance está a la vista
+mientras se contesta**, así que la tentación de retocar respuestas hasta que el número
+guste ya no la frena la interfaz. La frena el histórico, que guarda el setup con los
+puntos congelados y con la fecha, y que existe justamente para que eso se note al
+mirar hacia atrás.
+
+Tampoco hay un resumen de lo contestado: el Confluence Score ya enseña indicador,
+opción elegida y puntos de los seis, y con el formulario al lado sería decir dos veces
+lo mismo en la misma pantalla.
+
+**Operaciones va aparte del Histórico a propósito.** El Histórico responde *«¿qué
+decidí?»* —setups, balance, disciplina— y Operaciones responde *«¿qué hice?»*. Son
+preguntas distintas y con volúmenes muy distintos: doscientas operaciones importadas
+mezcladas con los setups ahogarían justo lo que el Histórico existe para medir. El
+puente entre ambas es la columna «Setup» de Operaciones, no la fusión de las dos
+tablas.
+
+En esa pantalla el origen de cada operación se distingue de un vistazo —`Bybit` en
+gris, `manual` en ámbar— porque el PnL de una es el dato contable del exchange y el
+de la otra lo tecleó el trader. Y **«sin vincular» se pinta en gris neutro, no en
+rojo**: las 201 operaciones importadas son anteriores a que el trader empezara a
+evaluar setups aquí, así que no tienen ninguno y no lo tendrán nunca. Ese hueco es
+el dato que delata haberse saltado el proceso, no una avería.
+
+Por delante de todas hay otra pantalla, el **login**: sin token no se monta
+ninguna. No es la comprobación de seguridad —esa la hace el backend, que
 rechaza cualquier `/api/*` sin token válido— sino de interfaz: sin sesión, todo lo
 que se pintase sería una sucesión de 401.
 
 | Pestaña | Qué hace |
 | --- | --- |
-| **Evaluación de setup** | Los 6 indicadores, los tres paneles de decisión y el guardado |
-| **Gestión de riesgo** | R:B, tamaño de posición, pérdida máxima, ratios ATR |
+| **Mercado** | Precio con RSI y libro de órdenes en directo. Contexto, no evidencia |
+| **Evaluación** | Las 6 preguntas y, al lado, los tres paneles del veredicto y el guardado |
+| **Riesgo** | R:B, tamaño de posición, pérdida máxima, ratios ATR |
+| **Operaciones** | Lo ejecutado en el exchange: sincronización con Bybit y vínculo con su setup |
 | **Histórico** | Los setups guardados, su desglose congelado, el registro manual del resultado y el borrado |
 | **Configuración** | Pesos, puntos, bandas y el semáforo de salud |
+
+Cada pestaña lleva un icono para poder escanearlas de reojo, y la activa se marca con
+un filete superior además del cambio de fondo: con seis, el resaltado por sí solo se
+lee mal. «Evaluación» muestra además un punto ámbar mientras queden preguntas sin
+contestar, que es el único dato que el trader necesita ver sin ir a buscarlo desde
+cualquier otra pantalla.
+
+«Mercado» va la primera porque es el orden en el que se mira —contexto, después
+describir y decidir— pero **la pantalla de arranque sigue siendo «Evaluación»**, que es
+a lo que se entra a hacer: abrir sesión no debería levantar un WebSocket y un iframe de
+TradingView que quizá no se van a mirar.
 
 `ConnectionCheck` sigue en `pages/` pero **ya no se monta**: cumplió su papel en la
 entrega 5 —demostrar que el frontend llega a Supabase de punta a punta— y se queda
 como herramienta de diagnóstico a la que se vuelve editando `App.jsx`.
+
+### Mercado: datos en directo sin pasar por el backend
+
+Es la única pantalla que **no habla con el backend**. El gráfico lo sirve TradingView y
+el libro de órdenes viene del **WebSocket público de Bybit**, los dos directos desde el
+navegador.
+
+**Sin credenciales, porque no admiten ninguna.** El endpoint es
+`wss://stream.bybit.com/v5/public/linear` y el tópico `orderbook.50.{símbolo}`: no
+lleva API key ni firma HMAC —a diferencia de `closed-pnl`, que sí— y devuelve
+exactamente lo mismo a cualquiera que se conecte. No hay ningún secreto implicado, así
+que no hay ninguno que pudiera filtrarse.
+
+**Y por eso no pasa por el backend.** Es el mismo razonamiento que con el widget de
+TradingView. Un proxy en Railway retransmitiendo cincuenta mensajes por segundo
+añadiría latencia a datos que caducan en milisegundos, un proceso más que mantener
+despierto, y un punto de fallo entre el trader y el exchange — todo para no proteger
+nada, porque lo que viaja ya es público. La regla del proyecto no cambia y conviene
+enunciarla bien: **lo que toca la cuenta pasa por el backend y solo el backend tiene
+llaves**; los datos de mercado, que no son de nadie, no.
+
+Es mainnet siempre, sin mirar `BYBIT_TESTNET`: esa variable protege *la cuenta*, y aquí
+no hay cuenta. El libro de testnet no es un mercado real y enseñarlo sería enseñar
+ruido.
+
+#### Presión del libro
+
+`(volumen_compra − volumen_venta) / (volumen_compra + volumen_venta)` sobre los **N
+niveles más cercanos al precio** (N configurable: 5, 10, 20 o 50; por defecto 20).
+Sale entre −1 y +1.
+
+Se pinta con **la misma barra que el balance del setup** —`components/ui/BalanceBar.jsx`,
+extraída del Decision Panel para que la usen los dos— porque es el mismo patrón: un
+número con signo que se inclina a un lado. Compartir la forma es lo que permite mirar
+los dos y compararlos sin traducir nada. Lo único que cambia es la escala y el nombre
+de los extremos.
+
+Solo los N más cercanos y no el libro entero: lejos del precio hay órdenes que nadie va
+a ejecutar hoy y que, contadas, tapan lo único que se quiere medir.
+
+#### Heatmap
+
+Los niveles ordenados **por precio** —ventas arriba, compras abajo, horquilla en
+medio— con una barra proporcional al volumen de cada uno. Ordenado por precio y no por
+tamaño porque así se ve *a qué distancia del precio* está cada muro, que es la mitad de
+la información: uno pegado al precio y otro a un 2 % no significan lo mismo. Cada barra
+se mide contra el mayor nivel visible, no contra un máximo fijo, porque el volumen
+absoluto de un libro de BTC y uno de SOL no se parecen en nada.
+
+Es **la foto de ahora, no un histórico**: no se acumula nada en el tiempo. Un heatmap
+con memoria —el que enseña dónde hubo liquidez hace una hora— es otra herramienta y
+necesita guardar series, no un WebSocket. La lista abre centrada en la horquilla: con
+N=20 son cuarenta filas y, abriendo por arriba, solo se vería el lado de venta.
+
+Enseña los mismos N niveles que mide la presión, a propósito: lo que se ve es
+exactamente lo que se está contando.
+
+#### Nada de esto puntúa en el score
+
+Los seis indicadores del modelo describen el gráfico. Esto describe el libro en este
+segundo, y se lo lleva la corriente en el siguiente. Es contexto para mirar antes de
+pulsar el botón, no una séptima confluencia. Si algún día el trader decide que debe
+puntuar, será una fila nueva en `indicator_options` y una decisión suya, no un efecto
+colateral de esta pantalla.
+
+#### Mantener el libro y sobrevivir a un corte
+
+Bybit no manda el libro entero en cada mensaje: manda un **snapshot** al suscribirse y
+después **deltas**. Reconstruirlo es cosa del cliente, y por eso vive en
+`lib/orderbook.js` —puro, con 33 tests— separado de `hooks/useOrderBook.js`, que solo
+se ocupa del socket.
+
+Los detalles que se pueden equivocar en silencio:
+
+- **Tamaño `0` significa borrar el nivel**, no «hay 0 contratos». Confundirlo deja
+  niveles fantasma que ensucian el heatmap para siempre.
+- **Los precios se guardan como la cadena que mandó Bybit**, no como número. Es la
+  clave con la que llegan los deltas, y `"16493.50"` y `"16493.5"` son el mismo número
+  pero distinta clave: pasar por `Number` y volver a texto dejaría niveles huérfanos
+  imposibles de borrar. De paso, al pintar se enseña el tick exacto del exchange.
+- **Si `u` da un salto, el libro local ya no es el de Bybit** y se tira entero para
+  pedir uno nuevo. Seguir aplicando deltas sobre un libro roto no da un error visible:
+  da un libro que miente, que es peor. Se contabiliza aparte, como «resinc.».
+- **Un libro congelado se ve igual que uno quieto.** Es el fallo que más importa aquí,
+  porque no se nota. Un WiFi que se cae **no dispara `close`**: el socket se queda
+  abierto contra nadie. Un vigilante marca la conexión como caída tras 12 s sin recibir
+  nada, y lo hace **él mismo** en vez de limitarse a cerrar y esperar al `onclose` —se
+  midió: sin red, `close()` no completa su saludo y `onclose` tardó 22 segundos, 22
+  segundos enseñando datos viejos bajo el rótulo «en vivo»—. Los pings van cada 8 s
+  para que el pong sirva de prueba de vida y el vigilante no dé falsas alarmas cuando
+  el mercado está quieto.
+- Sin conexión, los paneles **se atenúan y aparece un contador de antigüedad**
+  («datos de hace 14 s»): siguen consultables, pero dejan de parecer vigentes.
+- La reconexión es con espera creciente y algo de azar —si el corte fue de Bybit y no
+  del WiFi, medio mundo reconectaría en el mismo milisegundo— y el evento `online` del
+  navegador se salta la espera. Se cuenta **la vuelta, no cada intento fallido**: un
+  corte de veinte segundos es *una* reconexión, no las cinco veces que se probó
+  mientras no había red.
+
+Medido en el navegador contra Bybit real: 90 s seguidos de BTCUSDT sin una sola
+resincronización, corte de red detectado en 12 s y recuperado en 2 s al volver.
+
+**No se construye el mapa de liquidaciones.** Necesita un servicio de pago (Coinglass)
+y es una decisión aparte, pendiente de que el trader confirme si le compensa la
+suscripción.
 
 ### Evaluar no es guardar
 
@@ -352,8 +541,102 @@ Documentación interactiva completa en `/docs`. Resumen:
 | `DELETE`| `/api/setups/{id}`               | 🔒   | Borrar un setup del histórico                  |
 | `POST`  | `/api/setups/{id}/result`        | 🔒   | Registrar a mano cómo terminó                  |
 | `PATCH` | `/api/setups/{id}/result`        | 🔒   | Corregir un resultado registrado               |
+| `POST`  | `/api/trades/sync`               | 🔒   | Importar historial cerrado de Bybit            |
+| `GET`   | `/api/trades`                    | 🔒   | Operaciones, con filtros y paginación          |
+| `PATCH` | `/api/trades/{id}/setup`         | 🔒   | Corregir a mano el setup vinculado             |
 
 🔒 = exige `Authorization: Bearer <token>`.
+
+### Importar el historial de Bybit (Fase 2)
+
+`POST /api/trades/sync` descarga las posiciones cerradas de Bybit y las guarda en
+`trades` con `source = 'bybit'`. Es una acción **manual**, que dispara el trader
+cuando quiere: mientras el volumen sea el de una persona operando swing,
+automatizarlo solo añadiría una pieza que puede fallar de madrugada sin que nadie
+mire.
+
+**Solo lectura, siempre.** El adaptador (`app/adapters/bybit.py`) llama a un único
+endpoint de consulta, `GET /v5/position/closed-pnl`. No hay ni habrá nada que abra
+o cierre una posición, y la API key es de solo lectura por decisión de proyecto.
+
+Detalles que importan:
+
+- **Sin dependencia HTTP nueva.** `urllib` de la biblioteca estándar cubre un GET
+  firmado con timeout, igual que `hmac` cubrió la firma de los tokens de sesión.
+- **El host sale de `BYBIT_TESTNET`**, nunca está escrito en la llamada. El valor
+  por defecto es `true`: olvidarse de la variable apunta a la cuenta de pruebas,
+  nunca a la real.
+- **La firma sigue el esquema v5**: `HMAC_SHA256(secret, timestamp + api_key +
+  recv_window + query)` en `X-BAPI-SIGN`. La cadena que se firma es exactamente la
+  que va en la URL —se construye una sola vez— porque firmar una distinta de la
+  que se envía es el fallo clásico de esta API.
+- **Ventanas de 7 días y paginación por cursor**: `closed-pnl` no acepta rangos
+  mayores, así que los rangos largos se trocean, y cada ventana se recorre entera
+  siguiendo `nextPageCursor`.
+- **Falla ruidosamente.** Si Bybit no responde, contesta un HTTP de error, o
+  contesta 200 con `retCode != 0`, la sincronización se detiene con un **502** y
+  el motivo dentro. Nunca devuelve un resumen de ceros que parecería "no había
+  nada nuevo". Sin `BYBIT_API_KEY` o `BYBIT_API_SECRET`, **503** antes de empezar.
+- **`side` se invierte.** En `closed-pnl`, `side` es el lado de la orden que
+  *cerró* la posición: una posición larga se cierra vendiendo. Sin invertirlo,
+  todo el histórico entraría con la dirección al revés.
+- **Deduplicar es cosa del esquema.** El `UNIQUE` de `trades.bybit_order_id` con
+  `on conflict do nothing` — no un SELECT previo, que dejaría una ventana entre
+  comprobar e insertar.
+- **Los perpetuos (`...PERP`) se descartan a propósito.** El trader confirmó
+  haberlos usado en el pasado —27 operaciones en `BTCPERP` y `ETHPERP`— pero hoy
+  solo opera pares con margen en USDT. El filtro vive en el adaptador
+  (`SUFIJOS_EXCLUIDOS`), así que no llegan a procesarse ni a insertarse, y el
+  resumen de la sincronización los cuenta en `excluidas` para que la diferencia
+  con el total que se ve en Bybit quede explicada. Se filtra por lo que se
+  **excluye**, nunca por una lista blanca de pares permitidos: el día que
+  estrene un par nuevo entra solo, sin tocar código.
+- **La marca de sincronización es una optimización, no la verdad.** Se guarda en
+  `sync_state` (migración 005) para no releer dos años cada vez, pero cada
+  sincronización relee **24 horas de solapamiento** hacia atrás: si una murió a
+  medias, la siguiente recupera lo que faltaba. Preferir releer de más a
+  arriesgar un hueco es deliberado — un hueco no se nota hasta que faltan
+  operaciones en las estadísticas de la Fase 3.
+
+#### Vinculación automática con el setup
+
+Al importar una operación se busca el setup que la anticipó, y se guarda en
+`trades.setup_id`. Los tres criterios son filtros —hay que cumplirlos todos— y el
+desempate es la cercanía en el tiempo:
+
+| Criterio | Regla | Constante |
+| --- | --- | --- |
+| **Símbolo** | Mismo activo base, normalizado | — |
+| **Precio** | `\|entrada_real − precio_evaluado\| / precio_evaluado ≤ 0,5 %` | `TOLERANCIA_PRECIO` |
+| **Momento** | La operación abre **después** de evaluar, dentro de 48 h | `VENTANA_HORAS` |
+
+La **normalización de símbolo** recorta la cotización para quedarse con el activo
+base, de modo que el `BTC` que el trader escribió a mano empareje con el `BTCUSDT`
+de Bybit: `BTC` → `BTC`, `btcusdt` → `BTC`, `BTC/USDT` → `BTC`,
+`1000PEPEUSDT` → `1000PEPE`. Solo se recorta si queda algo detrás — `USDT` a secas
+se queda como está, porque una cadena vacía emparejaría con cualquier cosa.
+
+Que la operación abra **después** de la evaluación no es un detalle: un setup
+evaluado más tarde no anticipó nada, por muy cerca que caiga. La ventana de 48 h es
+generosa a propósito, porque esto es swing trading: el trader evalúa, espera a que
+el precio llegue a su zona, y entra un día o dos después. Una ventana de dashboard
+intradía dejaría sin vincular la mayoría.
+
+Si **varios** setups cumplen los tres, gana el evaluado más cerca de la apertura.
+Si **ninguno** cumple, la operación se guarda con `setup_id = NULL`: es una
+operación improvisada, y el esquema ya sabe representar ese caso —de hecho ese
+hueco es el dato que delata haberse saltado el proceso—.
+
+Un setup **sin precio anotado** no se vincula. No poder comprobar un criterio no es
+lo mismo que cumplirlo, y es preferible dejarlo suelto a colgarle una operación que
+quizá no era suya.
+
+**Puede equivocarse, y está asumido.** Dos setups del mismo par evaluados con veinte
+minutos de diferencia son indistinguibles para esta heurística. Por eso el vínculo
+vive en una columna editable y hay `PATCH /api/trades/{id}/setup` para corregirlo o
+quitarlo (`{"setup_id": null}`): un vínculo equivocado se arregla, uno irreversible
+no. El `setup_id` es `UNIQUE`, así que intentar colgar dos operaciones del mismo
+setup lo rechaza el esquema con un 409.
 
 ### Autenticación: una contraseña compartida
 
@@ -483,9 +766,10 @@ backend/sql/001_schema.sql         tablas, triggers, vistas, RLS
 backend/sql/002_seed.sql           catálogo de indicadores, opciones y umbrales
 backend/sql/003_manual_result.sql  registro manual del resultado
 backend/sql/004_security_invoker_views.sql   las vistas dejan de saltarse el RLS
+backend/sql/005_sync_state.sql     marca de la última sincronización con Bybit
 ```
 
-003 y 004 ya están incluidos en 001 para instalaciones nuevas; en una base de
+003, 004 y 005 ya están incluidos en 001 para instalaciones nuevas; en una base de
 datos que ya estaba en marcha, aplican lo que le falta. Ver
 [backend/sql/README.md](backend/sql/README.md).
 
@@ -506,7 +790,8 @@ Disponible en `http://localhost:8000` · documentación interactiva en `/docs`.
 El arranque **espera a tener conexión** con la base de datos. Si las credenciales
 están mal, falla ahí y no en la primera petición del trader.
 
-Tests (105: 41 del motor, 10 de los tokens, 54 de la API):
+Tests (185: 41 del motor, 10 de los tokens, 59 del adaptador de Bybit, 54+21 de
+la API):
 
 ```powershell
 cd backend
@@ -525,6 +810,16 @@ entorno y obtiene el token del endpoint real de login, no fabricándolo a mano.
 La cabecera va por defecto en el cliente de pruebas, así que los tests que ya
 existían no cambiaron ni una línea, y `anon_client` —sin token— es el que
 comprueba que lo protegido está protegido.
+
+**La suite nunca llama a Bybit.** Hacerlo la haría lenta, no determinista y
+dependiente de una cuenta ajena. La firma, la traducción, el troceado en
+ventanas y la vinculación se prueban puros en `test_bybit.py`; la
+deduplicación y el vínculo contra setups reales, insertando por el repositorio
+en `test_trades_api.py`. Como los tests de la marca de agua escriben en la fila
+real de `sync_state` —el CHECK de la tabla no admite un `source` de pruebas—,
+una fixture la fotografía antes y la restaura al terminar: si no, la suite
+dejaría al trader con una marca falsa y su siguiente sincronización miraría 24
+horas atrás en vez de los 90 días de la primera.
 
 ### Despliegue del backend en Railway
 
@@ -557,6 +852,8 @@ commitean):
 | `APP_TOKEN_SECRET` | **Sí** | Con qué se firman los tokens. **Genéralo, no lo inventes**: `openssl rand -hex 32`. Cambiarlo invalida todas las sesiones abiertas, que es lo que quieres si sospechas que se filtró un token. |
 | `CORS_ORIGINS` | **Sí, en la práctica** | Por defecto es `http://localhost:5173`. Sin cambiarla al dominio real de Vercel, el navegador bloquea toda petición del frontend en producción. |
 | `APP_ENV` | Recomendada | `production` apaga `/docs` y `/openapi.json`. |
+| `BYBIT_API_KEY` / `BYBIT_API_SECRET` | Solo para sincronizar | **De solo lectura**, sin permiso de trading ni de retiro. Sin ellas el backend arranca igual y solo `POST /api/trades/sync` responde 503. |
+| `BYBIT_TESTNET` | Recomendada | Default `true` (cuenta de pruebas). Ponla en `false` cuando quieras importar de la cuenta real. |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | No todavía | Reservadas para el Storage de la Fase 2; el backend arranca sin ellas. |
 | `LOG_LEVEL` | No | Default `info`. |
 | `RULE_B_ENABLED` | No | Default `true`, ya es la decisión confirmada. |
@@ -584,21 +881,25 @@ El puerto es `strictPort`: si el 5173 está ocupado, Vite falla en vez de saltar
 5174. El backend autoriza por CORS una lista blanca concreta, así que cambiar de puerto
 en silencio convertiría un "puerto ocupado" en un error de CORS incomprensible.
 
-Tests (15, sobre los cálculos de riesgo):
+Tests (48: 15 de riesgo y 33 del libro de órdenes):
 
 ```powershell
 cd frontend
 node tests/test_risk.mjs
+node tests/test_orderbook.mjs
 ```
 
 Sin framework y sin dependencias: `node:assert` basta para funciones puras, y meter un
-runner entero para un archivo de aritmética sería más cadena de suministro que test.
-Cubren R:B, tamaño de posición, el caso agnóstico largo/corto, las divisiones por cero
-—que devuelven `null`, nunca `Infinity` ni `NaN`— y el ATR opcional. Salen con código
-distinto de 0 si algo falla, así que sirven tal cual en CI.
+runner entero para dos archivos de aritmética sería más cadena de suministro que test.
+Los de riesgo cubren R:B, tamaño de posición, el caso agnóstico largo/corto, las
+divisiones por cero —que devuelven `null`, nunca `Infinity` ni `NaN`— y el ATR
+opcional. Los del libro cubren snapshots, deltas, el borrado por tamaño `0`, los saltos
+de secuencia y la presión, con mensajes escritos a mano con la forma exacta que manda
+Bybit: **nunca se abre un WebSocket**, que haría la suite lenta y no determinista.
+Salen con código distinto de 0 si algo falla, así que sirven tal cual en CI.
 
 El resto del frontend no tiene tests automáticos: se ha verificado a mano contra el
-backend real, pantalla por pantalla.
+backend real y contra Bybit real, pantalla por pantalla.
 
 ### El proyecto no debe vivir dentro de OneDrive
 
@@ -615,15 +916,24 @@ Reglas no negociables del proyecto:
 
 1. **Ninguna credencial en el código.** Todo por variables de entorno.
 2. **`.env` nunca se commitea.** Solo `.env.example`, con las llaves vacías.
-3. **El frontend nunca habla con Supabase ni con el exchange.** Solo con este backend.
-   El backend es el único que tiene credenciales. Un secreto en el frontend es un
-   secreto público: acaba dentro del bundle que se descarga el navegador.
+3. **El frontend nunca habla con Supabase, y con el exchange solo por canales
+   públicos y sin firmar.** Todo lo que toca la cuenta —historial, PnL,
+   posiciones, configuración, setups— pasa por este backend, que es el único
+   que tiene credenciales. Un secreto en el frontend es un secreto público:
+   acaba dentro del bundle que se descarga el navegador.
+   La **única** excepción es el WebSocket público de datos de mercado de la
+   pantalla de Mercado: no lleva API key porque el tópico no la admite, y lo
+   que devuelve es idéntico para cualquiera que se conecte. No hay nada que
+   firmar ni, por tanto, nada que filtrar. Ver
+   [Mercado](#mercado-datos-en-directo-sin-pasar-por-el-backend).
    RLS está activado en todas las tablas y sin políticas, y desde la migración
    **004** también las vistas lo respetan (`security_invoker = true`): antes se
    ejecutaban con los permisos de su dueño y dejaban leer el histórico con la
    clave `anon`, que es pública.
-4. **La API key de Bybit (Fase 2) será de solo lectura.** Sin permiso de trading ni de
-   retiro.
+4. **La API key de Bybit es de solo lectura.** Sin permiso de trading ni de retiro.
+   El adaptador llama a un único endpoint de consulta (`GET
+   /v5/position/closed-pnl`) y no hay en todo el código una sola llamada capaz de
+   abrir o cerrar una posición.
 5. **El sistema nunca ejecuta órdenes.** No es una limitación temporal, es una decisión
    de diseño permanente.
 6. **Nada de `/api/*` es público.** Una contraseña compartida protege todo lo que
@@ -657,9 +967,10 @@ sistema calcula el balance. No se detecta nada automáticamente todavía.
 
 **La Fase 1 está completa.**
 
-**No se construye en esta fase:** detección automática de divergencias o patrones,
+**No se construyó en esta fase:** detección automática de divergencias o patrones,
 integración con Kiyotaka, panel SDCA e indicadores on-chain, integración con Bybit,
-multi-usuario o login.
+multi-usuario o login. La integración con Bybit y la contraseña compartida llegaron
+después, ya en la Fase 2; el multiusuario sigue siendo Fase 6.
 
 ### El setup se guarda antes de saber el resultado
 
@@ -712,9 +1023,28 @@ Decisiones tomadas hoy que hacen posibles esas fases:
 10. [x] Frontend: guardado del setup en el histórico — `POST /api/setups`,
        incluidos los NO TRADE
 
+**Fase 2 en marcha.** Entregado hasta ahora:
+
+11. [x] Autenticación por contraseña compartida y borrado de setups
+12. [x] Backend: adaptador de solo lectura de Bybit, vinculación automática
+        setup ↔ operación y `POST /api/trades/sync`
+13. [x] Frontend: pantalla de Operaciones — sincronizar, listar, vincular a mano
+14. [x] Frontend: pantalla de Mercado — precio con RSI y libro de órdenes en
+        directo por WebSocket público
+15. [x] Frontend: formulario y veredicto de vuelta en una sola pantalla
+        («Evaluación»), después de probarlos partidos en dos pestañas
+
 ### Mejoras futuras
 
-Ninguna bloquea la Fase 2; son cosas que se han quedado a propósito fuera del alcance.
+Ninguna bloquea lo que queda de Fase 2; son cosas que se han quedado a propósito fuera
+del alcance.
+
+- **Mapa de liquidaciones.** Requiere un servicio de pago (Coinglass): decisión
+  pendiente de que el trader confirme si le compensa la suscripción. El WebSocket
+  público de Bybit no lo sirve.
+- **Heatmap con memoria.** El de hoy es la foto del libro ahora; el que enseña dónde
+  hubo liquidez hace una hora necesita guardar series en la base de datos, y eso ya no
+  es esta pantalla.
 
 - **Puntuar los patrones gráficos de forma distinta entre sí.** Hoy todos los alcistas
   valen +10 y todos los bajistas −10. Si el trader decide que un bull flag pesa más que

@@ -15,6 +15,7 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import config as config_routes
 from app.api.routes import health as health_routes
 from app.api.routes import setups as setups_routes
+from app.api.routes import trades as trades_routes
 from app.core import get_settings
 from app.db import close_pool, open_pool
 
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_routes.router)
     app.include_router(config_routes.router)
     app.include_router(setups_routes.router)
+    app.include_router(trades_routes.router)
 
     return app
 

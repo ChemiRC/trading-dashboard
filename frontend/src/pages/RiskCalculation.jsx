@@ -3,7 +3,7 @@ import RiskCalculator from "../components/risk/RiskCalculator.jsx";
 /**
  * Punto de montaje de la entrega 8.
  *
- * Sin relación con `SetupEvaluation`: el trader llega aquí después de haber
+ * Sin relación con la evaluación: el trader llega aquí después de haber
  * decidido la entrada, para saber cuánto arriesga y qué tamaño de posición
  * le corresponde. No hay catálogo ni backend de por medio.
  */
