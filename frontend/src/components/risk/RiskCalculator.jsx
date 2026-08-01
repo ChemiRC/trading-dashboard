@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { formatNumber, formatQuantity } from "../../lib/format.js";
 import { calculateAtrRatio, calculateRisk } from "../../lib/risk.js";
 import AnimatedNumber from "../ui/AnimatedNumber.jsx";
+import Insignia from "../ui/Insignia.jsx";
 
 /**
  * Gestión de riesgo: cuánto se puede perder y cuántas unidades comprar,
@@ -82,16 +83,42 @@ function Fila({ etiqueta, valor, className = "text-ink" }) {
 }
 
 /** Igual que `Fila`, pero el número tween-ea hacia su valor nuevo en vez de saltar. */
-function FilaAnimada({ etiqueta, valor, formatear, sufijo = "", className = "text-ink" }) {
+function FilaAnimada({
+  etiqueta,
+  valor,
+  formatear,
+  sufijo = "",
+  className = "text-ink",
+  insignia,
+}) {
   return (
     <div className="flex items-baseline justify-between gap-4 px-4 py-2 text-sm">
       <span className="text-ink-dim">{etiqueta}</span>
-      <span className={`tabular-nums ${className}`}>
-        <AnimatedNumber valor={valor} formatear={formatear} />
-        {valor != null && sufijo}
+      <span className="flex items-baseline gap-2">
+        {insignia}
+        <span className={`tabular-nums ${className}`}>
+          <AnimatedNumber valor={valor} formatear={formatear} />
+          {valor != null && sufijo}
+        </span>
       </span>
     </div>
   );
+}
+
+/**
+ * Cómo se lee un R:B, en una palabra.
+ *
+ * El número solo no dice si está bien: 1,4 puede parecer razonable y no lo es
+ * si el plan era arriesgar una unidad para ganar dos. Las bandas son las de
+ * manual —por debajo de 1 se arriesga más de lo que se puede ganar, a partir
+ * de 2 el sistema tolera fallar más veces de las que acierta— y son
+ * orientativas: aquí no hay nada configurable ni nada que entre en el score.
+ */
+function InsigniaRatio({ ratio }) {
+  if (ratio == null) return null;
+  if (ratio < 1) return <Insignia tono="pendiente">arriesga más de lo que gana</Insignia>;
+  if (ratio < 2) return <Insignia tono="aviso">justo</Insignia>;
+  return <Insignia tono="ok">favorable</Insignia>;
 }
 
 /**
@@ -243,6 +270,7 @@ export default function RiskCalculator() {
                   etiqueta="R:R"
                   valor={resultado?.riskRewardRatio ?? null}
                   formatear={formatNumber}
+                  insignia={<InsigniaRatio ratio={resultado?.riskRewardRatio ?? null} />}
                 />
               </div>
               <BarraRiesgoBeneficio ratio={resultado?.riskRewardRatio ?? null} />

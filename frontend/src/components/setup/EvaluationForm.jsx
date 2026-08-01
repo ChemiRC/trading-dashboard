@@ -1,4 +1,6 @@
 import { conSigno, tono } from "../../lib/format.js";
+import { IconoIndicador } from "../ui/Icons.jsx";
+import Insignia from "../ui/Insignia.jsx";
 
 /**
  * Formulario de evaluación pre-trade: las seis preguntas y sus opciones.
@@ -8,8 +10,20 @@ import { conSigno, tono } from "../../lib/format.js";
  * marca. El estado vive en `useEvaluacion`, por encima de las pestañas, para
  * que salir de «Evaluación» y volver no lo tire (ver ese hook).
  *
+ * **Compacto a propósito.** Cada indicador ocupa una franja con el nombre a la
+ * izquierda y sus opciones fluyendo a la derecha, en vez de un bloque apilado
+ * con el nombre encima. Con seis preguntas, la versión apilada obligaba a
+ * desplazarse para llegar a la última y dejaba el veredicto fuera de la
+ * pantalla al mismo tiempo. Aquí las seis caben a la vez en un monitor normal
+ * y el panel de la derecha se queda fijo al lado (ver `pages/Evaluacion.jsx`).
+ *
+ * En móvil la franja se apila —no hay ancho para dos columnas— y los botones
+ * crecen hasta un área de toque cómoda: son el control que más se pulsa de
+ * toda la aplicación.
+ *
  * Los indicadores y sus opciones vienen enteros del catálogo: aquí no hay ni
- * un peso ni un nombre escrito.
+ * un peso ni un nombre escrito. El icono se elige por `code`, que es estable
+ * aunque el indicador se renombre desde Configuración.
  */
 export default function EvaluationForm({
   estadoCatalogo,
@@ -60,9 +74,11 @@ export default function EvaluationForm({
 }
 
 function IndicatorField({ indicador, valor, onElegir }) {
+  const sinResponder = valor === null;
+
   return (
     <li
-      className={`px-4 py-4 ${
+      className={`px-4 py-2.5 ${
         // El indicador puerta es estructuralmente distinto -- puede bloquear
         // todo el resultado (Regla A) -- así que se insinúa con un acento en
         // el borde izquierdo antes de que nadie llegue a leer la etiqueta.
@@ -71,43 +87,80 @@ function IndicatorField({ indicador, valor, onElegir }) {
         indicador.is_gate ? "border-l-2 border-l-cls-medium bg-cls-medium/[0.03]" : ""
       }`}
     >
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="text-ink">{indicador.name}</span>
-        {indicador.is_gate && (
-          <span className="rounded border border-cls-medium/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-cls-medium">
-            puerta · regla A
+      {/* El nombre encima y las opciones debajo, a todo el ancho de la
+          columna. Se probó con el nombre en una columna fija a la izquierda —
+          más compacto sobre el papel— y salió peor: le robaba a las opciones
+          los 180 px que necesitan para ponerse de dos en dos, así que cada una
+          caía en su propia línea y el bloque acababa siendo más alto, no menos. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <IconoIndicador
+            code={indicador.code}
+            className={`h-4 w-4 shrink-0 ${
+              sinResponder ? "text-ink-faint" : "text-ink-dim"
+            }`}
+          />
+          {/* El nombre del indicador es el título de la pregunta y pesa más que
+              cualquier otra cosa de la fila: sin eso las seis franjas se leían
+              como una lista uniforme de botones. */}
+          <span className="text-sm font-semibold tracking-tight text-ink">
+            {indicador.name}
           </span>
-        )}
-        {valor === null && (
-          <span className="animate-fade-in rounded border border-short/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-short">
-            sin responder
-          </span>
-        )}
+          {indicador.is_gate && (
+            <Insignia tono="aviso" titulo="Sin divergencia, el resultado es NO TRADE inmediato">
+              puerta · regla A
+            </Insignia>
+          )}
+        {sinResponder && <Insignia tono="pendiente">sin responder</Insignia>}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {indicador.options.map((opcion) => {
-          const activa = opcion.code === valor;
-          return (
-            <button
-              key={opcion.code}
-              type="button"
-              onClick={() => onElegir(opcion.code)}
-              aria-pressed={activa}
-              className={`rounded border px-3 py-1.5 text-sm transition-all duration-150 active:scale-[0.96] ${
-                activa
-                  ? "border-ink bg-raised text-ink"
-                  : "border-line text-ink-dim hover:border-ink-faint hover:text-ink"
-              }`}
-            >
-              <span>{opcion.label}</span>
-              <span className={`ml-2 tabular-nums ${tono(opcion.points)}`}>
-                {conSigno(opcion.points)}
-              </span>
-            </button>
-          );
-        })}
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {indicador.options.map((opcion) => (
+          <BotonOpcion
+            key={opcion.code}
+            opcion={opcion}
+            activa={opcion.code === valor}
+            onElegir={() => onElegir(opcion.code)}
+          />
+        ))}
       </div>
     </li>
   );
 }
+
+/**
+ * Una opción del catálogo.
+ *
+ * El borde es **siempre de dos píxeles**: lo que cambia entre marcada y sin
+ * marcar es el color, no el grosor. Engordar el borde solo al seleccionar
+ * movería el resto de las opciones de sitio cada vez que se pulsa una, y en
+ * una fila que se recorre a golpes de clic eso se nota mucho más que el
+ * contraste que se gana.
+ *
+ * La marcada suma tres señales a la vez —borde claro, fondo elevado y una
+ * línea interior— porque una sola (el relleno sutil que había antes) se perdía
+ * al mirar la pantalla de reojo, que es como se mira mientras se compara con
+ * el gráfico.
+ *
+ * `min-h-11` son los 44 px de área de toque cómoda en móvil; en escritorio se
+ * relaja a la altura natural del texto.
+ */
+function BotonOpcion({ opcion, activa, onElegir }) {
+  return (
+    <button
+      type="button"
+      onClick={onElegir}
+      aria-pressed={activa}
+      className={`inline-flex min-h-11 items-center gap-2 rounded border-2 px-2.5 py-1 text-left text-sm transition-all duration-150 active:scale-[0.97] sm:min-h-0 ${
+        activa
+          ? "border-ink bg-raised text-ink ring-1 ring-inset ring-ink/25"
+          : "border-line/70 text-ink-dim hover:border-ink-faint hover:bg-raised/50 hover:text-ink"
+      }`}
+    >
+      <span>{opcion.label}</span>
+      <span className={`tabular-nums ${activa ? tono(opcion.points) : "text-ink-faint"}`}>
+        {conSigno(opcion.points)}
+      </span>
+    </button>
+  );
+}
+

@@ -1,3 +1,5 @@
+import Insignia from "../ui/Insignia.jsx";
+
 /**
  * Semáforo de la vista `v_config_health`, más el estado de la Regla B.
  *
@@ -25,8 +27,12 @@ function Marca({ ok, etiqueta, valor }) {
   return (
     <div className="px-4 py-3">
       <div className="text-[11px] uppercase tracking-wider text-ink-faint">{etiqueta}</div>
-      <div className={`mt-1 text-sm ${ok ? "text-long" : "text-cls-medium"}`}>
-        {ok ? "✓" : "⚠"} {valor}
+      {/* La insignia dice el estado y el texto dice el dato: el mismo patrón
+          que «puerta · regla A» en el formulario, para que un vistazo a
+          cualquier pantalla se lea igual. */}
+      <div className="mt-1 flex items-center gap-2">
+        <Insignia tono={ok ? "ok" : "aviso"}>{ok ? "✓ ok" : "⚠ revisar"}</Insignia>
+        <span className={`text-sm ${ok ? "text-ink" : "text-cls-medium"}`}>{valor}</span>
       </div>
     </div>
   );
