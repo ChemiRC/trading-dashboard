@@ -15,7 +15,13 @@ from app.adapters import bybit, vinculacion
 from app.api.auth import Protegido
 from app.api.deps import Config, Conn
 from app.db import trades_repo
-from app.models import RelinkRequest, SyncSummary, TradeOut, TradePage
+from app.models import (
+    JournalNotesRequest,
+    RelinkRequest,
+    SyncSummary,
+    TradeOut,
+    TradePage,
+)
 
 log = logging.getLogger("app.api.trades")
 
@@ -155,6 +161,33 @@ def relink_trade(trade_id: UUID, body: RelinkRequest, conn: Conn) -> TradeOut:
     ese 409 llega con el mensaje del esquema como cualquier otro.
     """
     fila = trades_repo.relink_trade(conn, trade_id, body.setup_id)
+    if fila is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail=f"No existe la operacion {trade_id}."
+        )
+    return TradeOut(**fila)
+
+
+@router.patch(
+    "/{trade_id}/notes",
+    response_model=TradeOut,
+    summary="Editar las notas de journal de una operacion",
+)
+def update_trade_notes(
+    trade_id: UUID, body: JournalNotesRequest, conn: Conn
+) -> TradeOut:
+    """El journal de la operacion: por que se entro, por que se salio, como se vivio.
+
+    Distinto de `result_notes`, que va con el resultado y solo habla del
+    cierre. Estas son las notas de la operacion entera, y se pueden editar
+    tanto en las importadas de Bybit como en las registradas a mano: los
+    numeros de una importada son del exchange y no se tocan, pero el motivo
+    de entrada es del trader.
+
+    Se guarda en `trades.comments` -- ver la migracion 006 para por que no se
+    creo una columna nueva.
+    """
+    fila = trades_repo.update_journal_notes(conn, trade_id, body.journal_notes)
     if fila is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, detail=f"No existe la operacion {trade_id}."

@@ -32,6 +32,7 @@ from .setup import (
     SetupSummary,
 )
 from .trade import (
+    JournalNotesRequest,
     RelinkRequest,
     SyncSummary,
     TradeListItem,
@@ -60,6 +61,7 @@ __all__ = [
     "SetupResultIn",
     "SetupResultPatch",
     "SetupSummary",
+    "JournalNotesRequest",
     "RelinkRequest",
     "SyncSummary",
     "TradeListItem",

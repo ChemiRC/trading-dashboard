@@ -55,3 +55,23 @@ export function relinkTrade(tradeId, setupId, options) {
     ...options,
   });
 }
+
+/**
+ * Las notas de journal de una operación: por qué se entró, por qué se salió,
+ * cómo se vivió.
+ *
+ * Distintas de las notas del resultado, que solo hablan del cierre. Se pueden
+ * editar en cualquier operación, venga de Bybit o registrada a mano: los
+ * números de una importada son del exchange y no se tocan, pero el motivo de
+ * entrada es del trader.
+ *
+ * `null` las vacía; una cadena en blanco también, porque el backend la
+ * normaliza.
+ */
+export function updateTradeNotes(tradeId, journalNotes, options) {
+  return request(`/api/trades/${encodeURIComponent(tradeId)}/notes`, {
+    method: "PATCH",
+    body: { journal_notes: journalNotes },
+    ...options,
+  });
+}

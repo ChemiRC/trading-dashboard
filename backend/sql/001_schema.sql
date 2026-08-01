@@ -564,7 +564,20 @@ select
   t.exit_reason as result_notes,
   t.source      as trade_source,
   t.created_at  as result_created_at,
-  t.updated_at  as result_updated_at
+  t.updated_at  as result_updated_at,
+
+  -- Puente hacia Operaciones (006): con qué operación acabó este setup. Las
+  -- dos pantallas siguen separadas; esto solo evita tener que ir a buscarla.
+  -- `comments` se publica como notas de journal, igual que `exit_reason` se
+  -- publica como `result_notes`: ver 006 para por qué no hay columna nueva.
+  t.symbol      as trade_symbol,
+  t.side        as trade_side,
+  t.opened_at   as trade_opened_at,
+  t.closed_at   as trade_closed_at,
+  t.entry_price as trade_entry_price,
+  t.exit_price  as trade_exit_price,
+  t.quantity    as trade_quantity,
+  t.comments    as trade_journal_notes
 from setups s
 left join trades t on t.setup_id = s.id;
 

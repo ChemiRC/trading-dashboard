@@ -54,6 +54,12 @@ class TradeOut(BaseModel):
     pnl_net: Decimal | None
     source: Literal["bybit", "manual"]
 
+    #: Journal libre de la operación: motivo de entrada, de salida, cómo se
+    #: vivió. Distinto de `result_notes`, que es solo sobre el cierre. Se
+    #: guarda en `trades.comments` -- ver la migración 006 para por qué no hay
+    #: columna nueva.
+    journal_notes: str | None = None
+
 
 class TradeListItem(TradeOut):
     """Una fila del listado, con lo mínimo del setup vinculado ya embebido.
@@ -79,6 +85,23 @@ class TradePage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class JournalNotesRequest(BaseModel):
+    """Las notas de journal de una operación.
+
+    Se piden explícitamente y no como campo opcional, por el mismo motivo que
+    `RelinkRequest`: `null` es un valor legítimo —vaciar las notas— y mandar
+    `{}` no debe significar «bórralas».
+
+    A diferencia del resultado, esto **sí** se puede editar siempre, venga la
+    operación de Bybit o esté registrada a mano: el PnL es un dato contable del
+    exchange y no se toca, pero por qué se entró es del trader y solo suyo.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    journal_notes: str | None = Field(max_length=4000)
 
 
 class RelinkRequest(BaseModel):

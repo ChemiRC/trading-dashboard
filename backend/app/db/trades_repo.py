@@ -121,9 +121,45 @@ def relink_trade(
                 update trades set setup_id = %s
                 where id = %s
                 returning id, setup_id, symbol, side, bybit_order_id,
-                          opened_at, closed_at, pnl_net, source
+                          opened_at, closed_at, pnl_net, source,
+                          comments as journal_notes
                 """,
                 [str(setup_id) if setup_id else None, str(trade_id)],
+            )
+            return cur.fetchone()
+
+
+# ---------------------------------------------------------------------------
+#  Journal
+# ---------------------------------------------------------------------------
+
+
+def update_journal_notes(
+    conn: Connection, trade_id: UUID, notas: str | None
+) -> dict[str, Any] | None:
+    """Escribe las notas libres de la operación. None si no existe.
+
+    Se guarda en `trades.comments`: la columna existe desde 001 y era
+    exactamente para esto (ver la migración 006). La cadena vacía se guarda
+    como NULL —«sin notas» y «notas en blanco» son lo mismo, y dejar cadenas
+    vacías obligaría a comprobar dos cosas en cada sitio que las lea.
+
+    No distingue entre operaciones de Bybit y manuales a propósito: el PnL de
+    una importada es dato contable del exchange y no se toca, pero por qué se
+    entró es del trader, venga la operación de donde venga.
+    """
+    limpia = (notas or "").strip() or None
+    with conn.transaction():
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                update trades set comments = %s
+                where id = %s
+                returning id, setup_id, symbol, side, bybit_order_id,
+                          opened_at, closed_at, pnl_net, source,
+                          comments as journal_notes
+                """,
+                [limpia, str(trade_id)],
             )
             return cur.fetchone()
 
@@ -139,6 +175,7 @@ _SQL_LISTA_TRADES = """
     select t.id, t.setup_id, t.symbol, t.side, t.bybit_order_id,
            t.opened_at, t.closed_at, t.pnl_net, t.source,
            t.entry_price, t.exit_price, t.quantity,
+           t.comments as journal_notes,
            s.symbol       as setup_symbol,
            s.evaluated_at as setup_evaluated_at,
            s.decision     as setup_decision,

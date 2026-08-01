@@ -6,7 +6,9 @@ import {
   registerSetupResult,
   updateSetupResult,
 } from "../../api/setups.js";
+import { ETIQUETA_MOTIVO, ETIQUETA_OUTCOME } from "../../lib/etiquetas.js";
 import { conSigno, formatFecha, formatNumber, tono } from "../../lib/format.js";
+import { IconoDireccion, IconoVinculo } from "../ui/Icons.jsx";
 
 /**
  * Desglose completo de un setup guardado, vía `GET /api/setups/{id}`.
@@ -24,24 +26,13 @@ import { conSigno, formatFecha, formatNumber, tono } from "../../lib/format.js";
  * que se añade a posteriori es el desenlace.
  */
 
-// El mismo mapa que usa el Permission Panel. El texto largo del motivo
-// (`no_trade_message`) viene del backend; esto es solo la etiqueta corta.
-const ETIQUETA_MOTIVO = {
-  GATE_NO_DIVERGENCE: "Regla A · sin disparador",
-  TRIGGER_CONTRADICTION: "Regla B · contradicción",
-  ZERO_BALANCE: "Balance cero",
-  BELOW_THRESHOLD: "Score bajo",
-};
-
-const ETIQUETA_OUTCOME = { WIN: "Ganada", LOSS: "Perdida", BREAKEVEN: "Breakeven" };
-
 const CLASE_OUTCOME = {
   WIN: "border-long/50 bg-long-deep/40 text-long",
   LOSS: "border-short/50 bg-short-deep/40 text-short",
   BREAKEVEN: "border-line bg-raised text-flat",
 };
 
-export default function SetupDetail({ id, onActualizado, onBorrado }) {
+export default function SetupDetail({ id, onActualizado, onBorrado, irA }) {
   const [estado, setEstado] = useState("cargando");
   const [setup, setSetup] = useState(null);
   const [error, setError] = useState(null);
@@ -152,10 +143,137 @@ export default function SetupDetail({ id, onActualizado, onBorrado }) {
         </div>
       )}
 
+      <OperacionVinculada setup={setup} irA={irA} />
       <ResultSection setup={setup} onActualizado={actualizado} />
       <DeleteSection setup={setup} onBorrado={onBorrado} />
     </div>
   );
+}
+
+/**
+ * La operación en la que acabó este setup, si acabó en alguna.
+ *
+ * **El puente entre las dos pantallas, no su fusión.** El Histórico sigue
+ * respondiendo «¿qué decidí?» y Operaciones «¿qué hice?»; lo que faltaba era
+ * poder ver, desde un setup, con qué operación terminó, sin cambiar de
+ * pantalla y buscarla a ojo entre doscientas. Aquí va lo justo para
+ * reconocerla —lado, precios, fechas— y un enlace para verla entera.
+ *
+ * Un NO TRADE no enseña nada de esto: quedarse fuera no tiene operación. Si
+ * hubiera uno vinculado sería que el trader operó en contra del veredicto, y
+ * entonces sí conviene verlo, así que se enseña igual cuando existe.
+ */
+function OperacionVinculada({ setup, irA }) {
+  if (!setup.trade_id) return null;
+
+  const pnl = setup.pnl_net == null ? null : Number(setup.pnl_net);
+  const importada = setup.trade_source === "bybit";
+
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="inline-flex items-baseline gap-1.5 text-[11px] uppercase tracking-wider text-ink-faint">
+          <IconoVinculo className="h-3 w-3 shrink-0 self-center" />
+          Operación vinculada
+        </span>
+        {irA && (
+          <button
+            type="button"
+            onClick={() => irA("operaciones")}
+            className="text-xs text-ink-faint underline-offset-2 transition-colors hover:text-ink hover:underline"
+          >
+            Verla en Operaciones →
+          </button>
+        )}
+      </div>
+
+      <div className="mt-2 rounded border border-line bg-surface px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="text-sm text-ink">{setup.trade_symbol ?? setup.symbol}</span>
+          {setup.trade_side && (
+            <span
+              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs uppercase tracking-wider ${
+                CLASE_LADO_TRADE[setup.trade_side] ?? "border-line bg-raised text-flat"
+              }`}
+            >
+              <IconoDireccion direccion={setup.trade_side} className="h-3 w-3" />
+              {setup.trade_side}
+            </span>
+          )}
+          <span className="rounded border border-line bg-raised px-2 py-0.5 text-[10px] uppercase tracking-wider text-ink-dim">
+            {importada ? "Bybit" : "manual"}
+          </span>
+          {pnl != null && (
+            <span className={`ml-auto tabular-nums text-sm ${tono(pnl)}`}>
+              {pnl > 0 ? "+" : ""}
+              {formatNumber(pnl)} USDT
+            </span>
+          )}
+        </div>
+
+        <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
+          <DatoOperacion etiqueta="Entrada" valor={numero(setup.trade_entry_price)} />
+          <DatoOperacion etiqueta="Salida" valor={numero(setup.trade_exit_price)} />
+          <DatoOperacion
+            etiqueta="Abierta"
+            valor={setup.trade_opened_at ? formatFecha(setup.trade_opened_at) : "—"}
+          />
+          <DatoOperacion
+            etiqueta="Cerrada"
+            valor={setup.trade_closed_at ? formatFecha(setup.trade_closed_at) : "—"}
+          />
+        </dl>
+
+        {setup.trade_journal_notes && (
+          <p className="mt-2 whitespace-pre-wrap border-t border-line pt-2 text-xs leading-relaxed text-ink-dim">
+            {setup.trade_journal_notes}
+          </p>
+        )}
+      </div>
+
+      {/* El precio al que se evaluó contra el precio real de entrada: la
+          diferencia entre el plan y la ejecución, que es lo que la Fase 5
+          existe para medir. Solo se enseña si están los dos. */}
+      {setup.price_at_evaluation != null && setup.trade_entry_price != null && (
+        <p className="mt-2 text-[11px] text-ink-faint">
+          Evaluado a{" "}
+          <span className="tabular-nums text-ink-dim">
+            {formatNumber(Number(setup.price_at_evaluation))}
+          </span>{" "}
+          y entrada real a{" "}
+          <span className="tabular-nums text-ink-dim">
+            {formatNumber(Number(setup.trade_entry_price))}
+          </span>{" "}
+          ({desvio(setup)}).
+        </p>
+      )}
+    </div>
+  );
+}
+
+const CLASE_LADO_TRADE = {
+  LONG: "border-long/50 bg-long-deep/40 text-long",
+  SHORT: "border-short/50 bg-short-deep/40 text-short",
+};
+
+function DatoOperacion({ etiqueta, valor }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] uppercase tracking-wider text-ink-faint">{etiqueta}</dt>
+      <dd className="truncate tabular-nums text-ink-dim">{valor}</dd>
+    </div>
+  );
+}
+
+const numero = (v) => (v == null ? "—" : formatNumber(Number(v)));
+
+function desvio(setup) {
+  const evaluado = Number(setup.price_at_evaluation);
+  const real = Number(setup.trade_entry_price);
+  if (!Number.isFinite(evaluado) || evaluado === 0) return "—";
+  const pct = ((real - evaluado) / evaluado) * 100;
+  const signo = pct > 0 ? "+" : "";
+  return `${signo}${pct.toFixed(2)} %`;
 }
 
 /**

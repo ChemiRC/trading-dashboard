@@ -69,6 +69,18 @@ class SetupDetail(SetupSummary):
     result_created_at: datetime | None = None
     result_updated_at: datetime | None = None
 
+    #: La operación vinculada, para poder verla sin ir a buscarla a la otra
+    #: pantalla. El Histórico sigue respondiendo «¿qué decidí?» y Operaciones
+    #: «¿qué hice?»: esto es el puente entre las dos, no su fusión.
+    trade_symbol: str | None = None
+    trade_side: Literal["LONG", "SHORT"] | None = None
+    trade_opened_at: datetime | None = None
+    trade_closed_at: datetime | None = None
+    trade_entry_price: Decimal | None = None
+    trade_exit_price: Decimal | None = None
+    trade_quantity: Decimal | None = None
+    trade_journal_notes: str | None = None
+
     @classmethod
     def from_row(cls, row: dict) -> "SetupDetail":
         return cls(

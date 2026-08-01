@@ -236,6 +236,123 @@ def test_el_cuerpo_vacio_no_significa_desvincular(client):
     assert r.status_code == 422
 
 
+# ---------------------------------------------------------------------------
+#  Notas de journal
+#
+#  Se guardan en `trades.comments`, que existia desde 001 y estaba sin usar
+#  (ver la migracion 006). Lo que se prueba aqui es el contrato de la API, no
+#  la columna: si algun dia se mueve de sitio, estos tests siguen valiendo.
+# ---------------------------------------------------------------------------
+
+
+def test_las_notas_de_journal_exigen_token(anon_client):
+    r = anon_client.patch(
+        f"/api/trades/{uuid.uuid4()}/notes", json={"journal_notes": "x"}
+    )
+    assert r.status_code == 401
+
+
+def test_se_guardan_y_se_releen_las_notas_de_una_operacion(client, db):
+    trade = trades_repo.insert_trade(
+        db, _trade(f"zztest-notas-{uuid.uuid4()}", abierta_en=datetime.now(UTC)), None
+    )
+
+    texto = "Entre por el barrido de liquidez. Sali antes de tiempo."
+    r = client.patch(f"/api/trades/{trade['id']}/notes", json={"journal_notes": texto})
+    assert r.status_code == 200
+    assert r.json()["journal_notes"] == texto
+
+    # Y se releen desde el listado, no solo desde la respuesta del PATCH.
+    listado = client.get("/api/trades?limit=200").json()["items"]
+    guardada = next(t for t in listado if t["id"] == str(trade["id"]))
+    assert guardada["journal_notes"] == texto
+
+
+def test_las_notas_se_pueden_vaciar(client, db):
+    trade = trades_repo.insert_trade(
+        db, _trade(f"zztest-vaciar-{uuid.uuid4()}", abierta_en=datetime.now(UTC)), None
+    )
+    client.patch(f"/api/trades/{trade['id']}/notes", json={"journal_notes": "algo"})
+
+    r = client.patch(f"/api/trades/{trade['id']}/notes", json={"journal_notes": None})
+    assert r.status_code == 200
+    assert r.json()["journal_notes"] is None
+
+
+def test_unas_notas_en_blanco_se_guardan_como_null(client, db):
+    """"Sin notas" y "notas con espacios" son lo mismo: si no, cada lector
+    tendria que comprobar las dos cosas."""
+    trade = trades_repo.insert_trade(
+        db, _trade(f"zztest-blanco-{uuid.uuid4()}", abierta_en=datetime.now(UTC)), None
+    )
+
+    r = client.patch(f"/api/trades/{trade['id']}/notes", json={"journal_notes": "   "})
+    assert r.status_code == 200
+    assert r.json()["journal_notes"] is None
+
+
+def test_el_cuerpo_vacio_no_borra_las_notas(client, db):
+    """Mismo criterio que el vinculo: {} es 422, no un borrado accidental."""
+    trade = trades_repo.insert_trade(
+        db, _trade(f"zztest-vacio-{uuid.uuid4()}", abierta_en=datetime.now(UTC)), None
+    )
+    client.patch(f"/api/trades/{trade['id']}/notes", json={"journal_notes": "importante"})
+
+    r = client.patch(f"/api/trades/{trade['id']}/notes", json={})
+    assert r.status_code == 422
+
+    listado = client.get("/api/trades?limit=200").json()["items"]
+    guardada = next(t for t in listado if t["id"] == str(trade["id"]))
+    assert guardada["journal_notes"] == "importante"
+
+
+def test_notas_en_una_operacion_inexistente_es_404(client):
+    r = client.patch(f"/api/trades/{uuid.uuid4()}/notes", json={"journal_notes": "x"})
+    assert r.status_code == 404
+
+
+def test_las_notas_no_tocan_el_vinculo_ni_el_pnl(client, todo_alcista, db):
+    """El journal es del trader; los numeros son del exchange. Editar uno no
+    puede mover el otro."""
+    setup = _guarda_setup(client, todo_alcista, precio="64000")
+    trade = trades_repo.insert_trade(
+        db,
+        _trade(f"zztest-aparte-{uuid.uuid4()}", abierta_en=datetime.now(UTC)),
+        uuid.UUID(setup["id"]),
+    )
+
+    r = client.patch(f"/api/trades/{trade['id']}/notes", json={"journal_notes": "nota"})
+    assert r.status_code == 200
+    cuerpo = r.json()
+    assert cuerpo["setup_id"] == setup["id"]
+    assert cuerpo["pnl_net"] is not None
+
+
+def test_el_detalle_del_setup_trae_la_operacion_vinculada(client, todo_alcista, db):
+    """El puente Historico -> Operaciones: desde un setup se ve con que
+    operacion acabo, sin cambiar de pantalla."""
+    setup = _guarda_setup(client, todo_alcista, precio="64000")
+    trades_repo.insert_trade(
+        db,
+        _trade(f"zztest-puente-{uuid.uuid4()}", abierta_en=datetime.now(UTC)),
+        uuid.UUID(setup["id"]),
+    )
+
+    detalle = client.get(f"/api/setups/{setup['id']}").json()
+    assert detalle["trade_symbol"] == SYMBOL
+    assert detalle["trade_side"] in ("LONG", "SHORT")
+    assert detalle["trade_opened_at"] is not None
+    assert detalle["trade_entry_price"] is not None
+
+
+def test_un_setup_sin_operacion_trae_los_campos_del_puente_a_null(client, todo_alcista):
+    setup = _guarda_setup(client, todo_alcista, precio="64000")
+    detalle = client.get(f"/api/setups/{setup['id']}").json()
+    assert detalle["trade_symbol"] is None
+    assert detalle["trade_opened_at"] is None
+    assert detalle["trade_journal_notes"] is None
+
+
 def test_no_se_pueden_colgar_dos_operaciones_del_mismo_setup(client, todo_alcista, db):
     setup = _guarda_setup(client, todo_alcista, precio="64000")
     ahora = datetime.now(UTC)

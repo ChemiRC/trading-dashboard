@@ -103,14 +103,24 @@ def save_setup(
 #  Consulta
 # ---------------------------------------------------------------------------
 
-_SQL_LISTA_BASE = """
-    select id, evaluated_at, symbol, timeframe, price_at_evaluation,
-           raw_balance, direction, decision, no_trade_reason,
-           classification_code, classification_label, notes,
-           trade_id, pnl_net, outcome,
-           result_notes, trade_source, result_created_at, result_updated_at
-    from v_setups_with_outcome
+#: Columnas del resumen: lo que pinta la tabla del histórico.
+_COLUMNAS_RESUMEN = """
+    id, evaluated_at, symbol, timeframe, price_at_evaluation,
+    raw_balance, direction, decision, no_trade_reason,
+    classification_code, classification_label, notes,
+    trade_id, pnl_net, outcome,
+    result_notes, trade_source, result_created_at, result_updated_at
 """
+
+#: Y las de la operación vinculada, solo para el detalle. No van en la lista
+#: porque la tabla no enseña nada de eso: traerlas en cada fila de una página
+#: de veinte sería pagar por lo que solo mira quien despliega una.
+_COLUMNAS_OPERACION = """
+    trade_symbol, trade_side, trade_opened_at, trade_closed_at,
+    trade_entry_price, trade_exit_price, trade_quantity, trade_journal_notes
+"""
+
+_SQL_LISTA_BASE = f"select {_COLUMNAS_RESUMEN} from v_setups_with_outcome"
 
 
 def list_setups(
@@ -262,9 +272,14 @@ def delete_setup(conn: Connection, setup_id: UUID) -> bool:
             return cur.rowcount > 0
 
 
+_SQL_DETALLE = (
+    f"select {_COLUMNAS_RESUMEN}, {_COLUMNAS_OPERACION} from v_setups_with_outcome"
+)
+
+
 def get_setup(conn: Connection, setup_id: UUID) -> dict[str, Any] | None:
     with conn.cursor() as cur:
-        cur.execute(f"{_SQL_LISTA_BASE} where id = %s", [str(setup_id)])
+        cur.execute(f"{_SQL_DETALLE} where id = %s", [str(setup_id)])
         setup = cur.fetchone()
         if setup is None:
             return None
