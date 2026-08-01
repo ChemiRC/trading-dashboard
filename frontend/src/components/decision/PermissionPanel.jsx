@@ -1,4 +1,5 @@
 import Spinner from "../ui/Spinner.jsx";
+import { ETIQUETA_MOTIVO } from "../../lib/etiquetas.js";
 
 /**
  * Clasificación derivada del valor absoluto del balance, y por qué el motivo
@@ -15,13 +16,6 @@ const CLASE_POR_TOKEN = {
   good: "text-cls-good",
   medium: "text-cls-medium",
   none: "text-cls-none",
-};
-
-const ETIQUETA_MOTIVO = {
-  GATE_NO_DIVERGENCE: "Regla A · sin disparador",
-  TRIGGER_CONTRADICTION: "Regla B · contradicción",
-  ZERO_BALANCE: "Balance cero",
-  BELOW_THRESHOLD: "Score bajo",
 };
 
 function PermissionBody({ evaluation, thresholds }) {

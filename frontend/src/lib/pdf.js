@@ -69,9 +69,31 @@ export function aBytesWinAnsi(texto) {
     if (punto >= 0x20 && punto <= 0x7e) bytes.push(punto);
     else if (punto >= 0xa1 && punto <= 0xff) bytes.push(punto);
     else if (A_WINANSI.has(punto)) bytes.push(A_WINANSI.get(punto));
+    // Tabulador, salto de línea y retorno se conservan tal cual. Convertirlos
+    // en «?» como al resto de lo desconocido destrozaría cualquier cosa que
+    // dependa de ellos como separador.
+    else if (punto === 0x09 || punto === 0x0a || punto === 0x0d) bytes.push(punto);
     else bytes.push(SUSTITUTO);
   }
   return bytes;
+}
+
+/**
+ * Cadena de texto para diccionarios (el `/Title` del `/Info`), en UTF-16BE con
+ * BOM.
+ *
+ * **No vale WinAnsi aquí.** Las cadenas de texto de un diccionario se
+ * interpretan en PDFDocEncoding, que coincide con WinAnsi en el ASCII pero no
+ * en el tramo 0x80–0x9F: una raya «—» escrita como 0x97 se lee como «Š» en el
+ * título de la ventana. Pasó, se vio en la pestaña del visor, y se arregla
+ * mandando UTF-16 explícito, que no admite interpretación (§7.9.2.2).
+ */
+export function aCadenaTexto(texto) {
+  let salida = "<feff";
+  for (let i = 0; i < texto.length; i += 1) {
+    salida += texto.charCodeAt(i).toString(16).padStart(4, "0");
+  }
+  return `${salida}>`;
 }
 
 /**
@@ -317,7 +339,7 @@ function construir(paginas, tamanoPagina, titulo) {
   });
 
   const info = objetos.push(
-    `<< /Title ${aCadenaHex(titulo)} /Producer ${aCadenaHex("Trading Dashboard")} >>`,
+    `<< /Title ${aCadenaTexto(titulo)} /Producer ${aCadenaTexto("Trading Dashboard")} >>`,
   ) - 1;
 
   // --- Bytes -------------------------------------------------------------
@@ -341,9 +363,17 @@ function construir(paginas, tamanoPagina, titulo) {
     if (typeof objeto === "string") {
       escribir(`${objeto}\n`);
     } else {
-      const contenido = aBytesWinAnsi(objeto.flujo);
-      escribir(`<< /Length ${contenido.length} >>\nstream\n`);
-      for (const b of contenido) bytes.push(b);
+      // El flujo de contenido es ASCII puro **por construcción**: los
+      // operadores lo son, y el texto va en cadenas hexadecimales. Se escribe
+      // tal cual, sin pasar por el codificador de texto -- que convertía en
+      // «?» los saltos de línea que separan las operaciones y dejaba al lector
+      // sin poder interpretar nada después de la primera.
+      const flujo = objeto.flujo;
+      if (!/^[\x09\x0a\x0d\x20-\x7e]*$/.test(flujo)) {
+        throw new Error("El flujo de contenido tiene bytes que no son ASCII.");
+      }
+      escribir(`<< /Length ${flujo.length} >>\nstream\n`);
+      escribir(flujo);
       escribir("\nendstream\n");
     }
     escribir("endobj\n");
