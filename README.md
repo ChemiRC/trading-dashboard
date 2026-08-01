@@ -134,6 +134,18 @@ dibujados con la geometría de lucide (lienzo 24×24, trazo de 2, extremos redon
 propósito: si algún día hacen falta cuarenta, instalar la librería será sustituir ese
 archivo y nada más.
 
+**`jsPDF` se evaluó para exportar el histórico y tampoco hizo falta.** Aquí el criterio
+no es el de los iconos —generar un PDF sí es un problema de verdad, no unas rutas SVG—
+sino mirar *qué* PDF hace falta: el informe es texto en Helvetica sobre A4, sin
+imágenes, sin fuentes que incrustar y sin gráficas. Helvetica es una de las catorce
+fuentes que todo lector trae de serie, así que no hay nada que empotrar, y el formato se
+reduce a escribir objetos y cuadrar la tabla de posiciones del final: son las ~250
+líneas de `src/lib/pdf.js` contra unos 110 kB comprimidos de librería. Lo que sí la
+justificaría es lo que este informe **no** hace —convertir DOM a PDF, incrustar
+tipografías, dibujar gráficas—: el día que haga falta cualquiera de las tres, se tira
+ese archivo y se instala jsPDF, y el resto del código no se entera porque solo habla con
+`crearDocumento`. Ver [Descargar el histórico en PDF](#descargar-el-histórico-en-pdf).
+
 **El widget de TradingView es la excepción, y conviene decirlo en voz alta.** No es un
 paquete de npm —`package.json` no cambia— pero sí carga un script de
 `s3.tradingview.com` en tiempo de ejecución y pinta dentro de un iframe suyo. Es el
@@ -163,7 +175,7 @@ trading-dashboard/
 │   │   ├── models/        Esquemas Pydantic (contratos de entrada y salida)
 │   │   ├── scoring/       Motor de decisión — función pura, sin dependencias
 │   │   └── main.py        Creación de la app, CORS, lifespan
-│   ├── sql/               Esquema, seed y migraciones  (001 · 002 · 003 · 004 · 005 · README)
+│   ├── sql/               Esquema, seed y migraciones  (001 … 006 · README)
 │   ├── tests/             test_engine (puro) · test_api (contra la BD real)
 │   ├── Procfile           Comando de arranque para Railway
 │   └── .env.example
@@ -180,13 +192,15 @@ trading-dashboard/
 │   │   │   ├── decision/
 │   │   │   │   ├── DecisionPanel.jsx     Veredicto y barra de balance
 │   │   │   │   ├── ConfluenceScore.jsx   Desglose con signo por indicador
-│   │   │   │   └── PermissionPanel.jsx   Clasificación y motivo del NO TRADE
+│   │   │   │   ├── PermissionPanel.jsx   Clasificación y motivo del NO TRADE
+│   │   │   │   └── ResumenMovil.jsx      El veredicto en una barra desplegable
 │   │   │   ├── setup/
 │   │   │   │   ├── EvaluationForm.jsx    Los 6 indicadores (presentacional)
 │   │   │   │   └── SaveSetupPanel.jsx    Símbolo/TF/precio/notas → guardar
 │   │   │   ├── history/
 │   │   │   │   ├── SetupList.jsx         Tabla del histórico, filas expandibles
-│   │   │   │   └── SetupDetail.jsx       Desglose congelado de un setup
+│   │   │   │   ├── SetupDetail.jsx       Desglose congelado de un setup
+│   │   │   │   └── ExportPdfButton.jsx   Descarga del histórico en PDF
 │   │   │   ├── market/
 │   │   │   │   ├── SymbolPicker.jsx      Selector único de símbolo de la pantalla
 │   │   │   │   ├── TradingViewChart.jsx  Gráfico con RSI (widget incrustado)
@@ -195,7 +209,8 @@ trading-dashboard/
 │   │   │   │   └── ConnectionStatus.jsx  Estado del WebSocket y antigüedad
 │   │   │   ├── trades/
 │   │   │   │   ├── SyncButton.jsx        Importar de Bybit y su resumen
-│   │   │   │   ├── TradeList.jsx         Tabla de operaciones ejecutadas
+│   │   │   │   ├── TradeList.jsx         Tabla (escritorio) y tarjetas (móvil)
+│   │   │   │   ├── TradeJournal.jsx      Notas libres de una operación
 │   │   │   │   └── LinkSetupPicker.jsx   Vincular a mano con un setup
 │   │   │   ├── risk/
 │   │   │   │   └── RiskCalculator.jsx    R:B, tamaño de posición, ATR
@@ -204,15 +219,20 @@ trading-dashboard/
 │   │   │   │   ├── ThresholdSettings.jsx Bandas de clasificación
 │   │   │   │   ├── ConfigHealth.jsx      Semáforo de v_config_health + Regla B
 │   │   │   │   └── EditControls.jsx      Campos y barra de guardado
-│   │   │   └── ui/        AnimatedNumber · BalanceBar · Spinner · Toast · Icons
+│   │   │   └── ui/        AnimatedNumber · BalanceBar · BarraGuardado ·
+│   │   │                   Insignia · Spinner · Toast · Icons
 │   │   ├── hooks/
 │   │   │   ├── useEvaluacion.js    Catálogo + selecciones + veredicto (sobre las pestañas)
 │   │   │   ├── useOrderBook.js     WebSocket de Bybit: conectar, reconectar, vigilar
 │   │   │   └── useConfigDrafts.js  Borradores por fila de la configuración
 │   │   ├── lib/
-│   │   │   ├── format.js     Puntos con signo, color por signo, cifras, fechas
-│   │   │   ├── orderbook.js  Snapshot + deltas, presión y niveles — funciones puras
-│   │   │   └── risk.js       Cálculos de riesgo — funciones puras
+│   │   │   ├── anchos.js        Qué pantallas se ensanchan en monitores grandes
+│   │   │   ├── etiquetas.js     Rótulos de los códigos del backend, en un solo sitio
+│   │   │   ├── format.js        Puntos con signo, color por signo, cifras, fechas
+│   │   │   ├── orderbook.js     Snapshot + deltas, presión y niveles — funciones puras
+│   │   │   ├── pdf.js           Generador de PDF mínimo, sin dependencias
+│   │   │   ├── reporteSetups.js El histórico en PDF — sin tocar el DOM
+│   │   │   └── risk.js          Cálculos de riesgo — funciones puras
 │   │   ├── pages/
 │   │   │   ├── Login.jsx            Contraseña compartida
 │   │   │   ├── Mercado.jsx          Precio, RSI y libro de órdenes en directo
@@ -225,7 +245,7 @@ trading-dashboard/
 │   │   ├── App.jsx        Pestañas entre las seis pantallas
 │   │   ├── main.jsx       Punto de entrada de React
 │   │   └── index.css      Tokens de diseño (@theme de Tailwind)
-│   ├── tests/             test_risk.mjs · test_orderbook.mjs — sin framework
+│   ├── tests/             test_risk · test_orderbook · test_pdf — sin framework
 │   ├── vite.config.js
 │   └── .env.example
 ├── .gitignore
@@ -295,6 +315,21 @@ Tampoco hay un resumen de lo contestado: el Confluence Score ya enseña indicado
 opción elegida y puntos de los seis, y con el formulario al lado sería decir dos veces
 lo mismo en la misma pantalla.
 
+**El veredicto no se va de la pantalla.** En escritorio la columna de la derecha
+—Decisión, Confluence Score, Permission Panel— es *sticky*: se queda pegada bajo la
+barra de pestañas mientras el formulario se desplaza. Antes el formulario medía más de
+mil píxeles y el panel unos pocos cientos, así que al bajar a contestar la última
+pregunta el resultado desaparecía justo cuando más falta hacía verlo — se midió:
+desplazando 700 px, el panel quedaba fuera de la vista. Con el formulario compacto
+(1034 → 742 px de alto) **las seis preguntas caben a la vez** en un monitor de 900 px,
+y lo que sobresale es el panel de guardado, que no se mira mientras se contesta.
+
+Cada indicador lleva su icono y su nombre en negrita, y las opciones marcadas se
+distinguen por tres señales a la vez —borde claro, fondo elevado y una línea interior—
+en vez del relleno sutil de antes, que se perdía al mirar de reojo. El borde es
+**siempre** de dos píxeles: engordarlo solo al seleccionar movería de sitio al resto de
+las opciones en cada clic.
+
 **Operaciones va aparte del Histórico a propósito.** El Histórico responde *«¿qué
 decidí?»* —setups, balance, disciplina— y Operaciones responde *«¿qué hice?»*. Son
 preguntas distintas y con volúmenes muy distintos: doscientas operaciones importadas
@@ -320,7 +355,7 @@ que se pintase sería una sucesión de 401.
 | **Evaluación** | Las 6 preguntas y, al lado, los tres paneles del veredicto y el guardado |
 | **Riesgo** | R:B, tamaño de posición, pérdida máxima, ratios ATR |
 | **Operaciones** | Lo ejecutado en el exchange: sincronización con Bybit y vínculo con su setup |
-| **Histórico** | Los setups guardados, su desglose congelado, el registro manual del resultado y el borrado |
+| **Histórico** | Los setups guardados, su desglose congelado, el registro manual del resultado, el borrado y la descarga en PDF |
 | **Configuración** | Pesos, puntos, bandas y el semáforo de salud |
 
 Cada pestaña lleva un icono para poder escanearlas de reojo, y la activa se marca con
@@ -333,6 +368,77 @@ cualquier otra pantalla.
 describir y decidir— pero **la pantalla de arranque sigue siendo «Evaluación»**, que es
 a lo que se entra a hacer: abrir sesión no debería levantar un WebSocket y un iframe de
 TradingView que quizá no se van a mirar.
+
+### El ancho no es el mismo en todas las pantallas
+
+Hasta `2xl` (1536 px) todo mide igual: `max-w-6xl`, 1152 px. Es el ancho con el que se
+diseñaron el móvil, la tablet y el portátil. Por encima de ese punto **unas pantallas se
+ensanchan hasta 1600 px y otras no**, y el criterio está en un solo sitio,
+`lib/anchos.js`:
+
+| | Hasta 1536 px | Desde 1536 px | Por qué |
+| --- | --- | --- | --- |
+| Mercado · Evaluación · Operaciones · Histórico | 1152 | **1600** | Dentro hay rejillas y tablas: el espacio se convierte en más contenido por fila |
+| Riesgo · Configuración | 1152 | **1152** | Dentro hay filas de «etiqueta ↔ valor» y campos de texto que ya ocupan todo lo ancho |
+
+Ensanchar solo vale la pena si algo **se reorganiza**. En Evaluación, cada 250 px de más
+son otro botón de opción por fila: a 1920 px pasan de 2 por fila a 4, y el formulario
+entero baja de 1340 a 1131 px de alto. En Mercado el gráfico gana 200 px de alto además
+de ancho —el RSI estaba aplastado en una banda de cien píxeles— y el heatmap enseña el
+doble de niveles sin desplazarse dentro del panel.
+
+En Riesgo y Configuración no se reorganiza nada: sus filas son una etiqueta a la
+izquierda y un valor a la derecha, así que los 450 px extra solo separarían las dos
+mitades, y el nombre de una opción del catálogo se convertiría en una caja de mil cien
+píxeles para escribir «Sin divergencia». Se auditaron las seis pantallas una por una y
+estas dos son las que no ganaban nada, así que se quedan donde estaban.
+
+**El tope es 1600 px y no `100%`** a propósito: pasado ese punto una fila de texto deja
+de leerse de un vistazo y hay que mover la cabeza. Lo que sobra se va a los márgenes,
+que en un monitor grande es exactamente lo que tiene que pasar — a 1920 px quedan 160 px
+por lado en vez de 384.
+
+Lo que **no** depende del tamaño de la ventana es `N`, los niveles que mide la presión
+del libro: es la medida, y hacerla crecer con la pantalla significaría que el mismo
+libro da un número distinto en el portátil y en el monitor. En pantalla grande se ve más
+de lo mismo, no se mide otra cosa.
+
+### En un teléfono es otra interfaz, no la misma encogida
+
+Tres cosas cambian por debajo de `sm` (640 px), y ninguna es un ajuste de márgenes:
+
+- **La navegación baja.** Seis pestañas en una barra horizontal arriba se envolvían en
+  dos filas que se comían un tercio de la pantalla y quedaban lejos del pulgar. En móvil
+  son una **barra fija abajo** con icono y etiqueta corta, celdas de 64 px, y la activa
+  marcada con el mismo filete que en escritorio. Se eligió barra y no menú desplegable a
+  propósito: un desplegable esconde dónde está uno y cuesta dos toques en vez de uno.
+  «Cerrar sesión» no entra ahí —no es un destino, y entre las pestañas se pulsaría por
+  error—: se queda arriba a la derecha.
+- **El veredicto se convierte en una barra.** No hay ancho para una columna fija, y
+  ponerlo debajo de las seis preguntas significaría marcar opciones sin ver nunca el
+  efecto. Así que queda **una línea siempre visible** sobre la navegación —«LONG +100 ·
+  Operación muy fuerte»— que al tocarla despliega el desglose completo a pantalla
+  casi entera, con el fondo bloqueado para que el gesto de leer no arrastre la página
+  de detrás.
+- **Las tablas se vuelven tarjetas.** Doscientas operaciones en siete columnas obligaban
+  a arrastrar de lado para leer una sola fila. En móvil cada operación y cada setup son
+  una tarjeta con lo importante arriba —símbolo, lado, PnL, fecha— y el resto en el
+  detalle desplegable, que ya existía. El orden del histórico, que en escritorio se
+  cambia pulsando la cabecera de columna, pasa a un selector: sin columnas no hay
+  cabeceras que pulsar.
+
+Los botones de opción del formulario miden **44 px de alto** en móvil y se relajan a la
+altura natural del texto en escritorio: son el control que más se pulsa de toda la
+aplicación.
+
+Comprobado a 375 y 414 px en las seis pantallas: ninguna desborda en horizontal.
+
+> **Un detalle que solo aparece en el navegador:** `position: fixed` deja de medirse
+> contra la ventana si algún ancestro tiene un `transform`, y el contenedor de la
+> pestaña activa lleva `animate-fade-in`, cuya animación deja puesto un transform
+> identidad al acabar. Con eso bastaba para que la barra del veredicto terminara a dos
+> mil píxeles del borde superior: en el DOM, con `position: fixed`, y fuera de la
+> pantalla. Se pinta con un portal a `document.body`.
 
 `ConnectionCheck` sigue en `pages/` pero **ya no se monta**: cumplió su papel en la
 entrega 5 —demostrar que el frontend llega a Supabase de punta a punta— y se queda
@@ -498,6 +604,93 @@ el setup se evaluó *antes* de saber cómo terminó; aquí solo se añade el
 desenlace. Corregir un error de captura sí se puede, y deja huella: la fecha de
 la corrección queda visible junto al resultado.
 
+### El journal de cada operación
+
+Toda operación —importada de Bybit o registrada a mano— tiene un campo de
+**notas libres**: por qué se entró, por qué se salió, cómo se vivió. Se edita
+desplegando su fila en «Operaciones», con el mismo gesto que Configuración
+(escribir → «Guardar» → «✓ Guardado»), y la barra de guardado es literalmente
+el mismo componente: dos implementaciones del mismo patrón acaban divergiendo
+justo en el detalle que más se nota.
+
+**Se editan también en las de Bybit, y eso es el punto.** Los números de una
+operación importada son el dato contable del exchange y no se tocan desde
+aquí; el motivo de entrada, en cambio, no lo sabe nadie más que el trader. La
+operación improvisada de la que no hay setup es precisamente la que más falta
+hace explicar.
+
+No se confunde con las notas del resultado (`result_notes`, que se registran
+desde el Histórico): aquellas hablan del cierre —«salió por objetivo»—, estas
+de la operación entera y sobre todo de la decisión.
+
+**No se creó ninguna columna para esto.** `trades` nació con cuatro columnas
+subjetivas reservadas para el journal —`entry_reason`, `exit_reason`,
+`emotion_code` y `comments`— de las que solo se usaba una, y no con su nombre:
+la vista publica `exit_reason` como `result_notes` desde la migración 003. Las
+notas libres son exactamente para lo que se reservó `comments`, así que se
+publican como `journal_notes` por el mismo mecanismo. Una columna nueva al
+lado de una `comments` vacía habría dejado dos sitios donde escribir lo mismo
+y, dentro de seis meses, la duda de cuál de los dos es el bueno.
+
+### El puente entre el Histórico y Operaciones
+
+Las dos pantallas siguen separadas —responden preguntas distintas y con
+volúmenes distintos, ver arriba— pero ahora se ven la una a la otra:
+
+- **Desde un setup**, al desplegarlo en el Histórico, aparece la operación en
+  la que acabó: lado, precios, fechas, PnL, sus notas de journal y un enlace
+  para verla entera en Operaciones. Cuando están los dos precios, se enseña
+  además la **diferencia entre el precio al que se evaluó y la entrada real**,
+  que es plan contra ejecución y lo que la Fase 5 existe para medir.
+- **Desde una operación**, vincularla con un setup dejó de ser un enlace de
+  texto perdido entre las columnas de una tabla densa: es un botón con nombre
+  —«Vincular con un setup» o «Cambiar setup»— dentro del detalle de la fila.
+
+Los campos del puente viajan solo en `GET /api/setups/{id}`, no en el listado:
+la tabla del histórico no enseña nada de eso y traerlos en cada fila de una
+página de veinte sería pagar por lo que solo mira quien despliega una.
+
+### Descargar el histórico en PDF
+
+Un botón en el Histórico genera el informe **en el navegador**, sin pasar por el
+backend: los datos ya están, y montar una ruta que dibuje PDF en el servidor sería
+trabajo nuevo para producir lo mismo.
+
+**Exporta lo que hay en pantalla**, ni más ni menos: los setups cargados, en el orden en
+que se están viendo. Si el trader lleva dos «Cargar más» y está ordenando por balance,
+eso es lo que sale, y el rótulo del botón lo dice cuando no son todos («Exporta los 20
+cargados, no los 47 del histórico»). Un botón que exportara siempre el histórico entero
+diría una cosa distinta de la que se está mirando. Sin ningún setup, el botón sigue
+visible pero **deshabilitado**, con el motivo al lado, en vez de producir un PDF vacío.
+
+**El desglose no viene en la lista.** `GET /api/setups` devuelve un resumen por setup y
+las seis aportaciones congeladas solo están en `GET /api/setups/{id}`, así que la
+exportación pide el detalle de cada uno —de seis en seis— antes de componer nada, y
+enseña el progreso mientras tanto. Se prefirió eso a engordar el endpoint que más se usa
+con datos que la tabla no necesita para pintarse.
+
+Cada bloque lleva fecha, símbolo, timeframe, precio de evaluación, balance con signo,
+dirección, decisión, el motivo si es NO TRADE, las seis aportaciones con sus puntos, las
+notas y el resultado si está registrado —con la fecha de la corrección si la hubo, que
+en un respaldo importa más que en la pantalla—. Un pie con «Página N de M» y salto de
+página automático: un bloque no empieza si no le quedan cien puntos por delante, para no
+dejar una cabecera huérfana al pie.
+
+**Los puntos son los congelados**, igual que en pantalla: salen de `points_applied` del
+setup guardado, no del catálogo vigente. Comprobado bajando de 30 a 12 los puntos de
+«Divergencia regular alcista» en Configuración: una evaluación nueva pasó a puntuar 12
+—balance 100 → 82— y el PDF del setup viejo siguió diciendo `+30 / 30`, byte a byte
+idéntico al de antes del cambio.
+
+El generador (`lib/pdf.js`) no toca el DOM, así que el informe entero se prueba desde
+Node. Los dos fallos que encontró la verificación —y que ninguna prueba de «no lanza
+excepciones» habría visto— fueron **silenciosos**: el codificador convertía en `?` los
+saltos de línea que separan las operaciones del flujo, y el visor dejaba de interpretar
+tras la primera línea de cada página; y el `/Title` iba en WinAnsi cuando los
+diccionarios usan PDFDocEncoding, así que la raya del título salía como `Š`. Los dos
+producían un PDF que abría sin quejarse. Por eso el archivo generado se abre y se mira,
+además de pasar los tests.
+
 ### Tokens de color
 
 | Token | Para qué |
@@ -544,6 +737,7 @@ Documentación interactiva completa en `/docs`. Resumen:
 | `POST`  | `/api/trades/sync`               | 🔒   | Importar historial cerrado de Bybit            |
 | `GET`   | `/api/trades`                    | 🔒   | Operaciones, con filtros y paginación          |
 | `PATCH` | `/api/trades/{id}/setup`         | 🔒   | Corregir a mano el setup vinculado             |
+| `PATCH` | `/api/trades/{id}/notes`         | 🔒   | Editar el journal de una operación             |
 
 🔒 = exige `Authorization: Bearer <token>`.
 
@@ -767,9 +961,10 @@ backend/sql/002_seed.sql           catálogo de indicadores, opciones y umbrales
 backend/sql/003_manual_result.sql  registro manual del resultado
 backend/sql/004_security_invoker_views.sql   las vistas dejan de saltarse el RLS
 backend/sql/005_sync_state.sql     marca de la última sincronización con Bybit
+backend/sql/006_journal_y_puente.sql  journal de la operación y puente con el setup
 ```
 
-003, 004 y 005 ya están incluidos en 001 para instalaciones nuevas; en una base de
+003, 004, 005 y 006 ya están incluidos en 001 para instalaciones nuevas; en una base de
 datos que ya estaba en marcha, aplican lo que le falta. Ver
 [backend/sql/README.md](backend/sql/README.md).
 
@@ -790,7 +985,7 @@ Disponible en `http://localhost:8000` · documentación interactiva en `/docs`.
 El arranque **espera a tener conexión** con la base de datos. Si las credenciales
 están mal, falla ahí y no en la primera petición del trader.
 
-Tests (185: 41 del motor, 10 de los tokens, 59 del adaptador de Bybit, 54+21 de
+Tests (194: 41 del motor, 10 de los tokens, 59 del adaptador de Bybit, 54+30 de
 la API):
 
 ```powershell
@@ -881,22 +1076,27 @@ El puerto es `strictPort`: si el 5173 está ocupado, Vite falla en vez de saltar
 5174. El backend autoriza por CORS una lista blanca concreta, así que cambiar de puerto
 en silencio convertiría un "puerto ocupado" en un error de CORS incomprensible.
 
-Tests (48: 15 de riesgo y 33 del libro de órdenes):
+Tests (89: 15 de riesgo, 33 del libro de órdenes y 41 del PDF):
 
 ```powershell
 cd frontend
 node tests/test_risk.mjs
 node tests/test_orderbook.mjs
+node tests/test_pdf.mjs
 ```
 
 Sin framework y sin dependencias: `node:assert` basta para funciones puras, y meter un
-runner entero para dos archivos de aritmética sería más cadena de suministro que test.
+runner entero para tres archivos sin DOM sería más cadena de suministro que test.
 Los de riesgo cubren R:B, tamaño de posición, el caso agnóstico largo/corto, las
 divisiones por cero —que devuelven `null`, nunca `Infinity` ni `NaN`— y el ATR
 opcional. Los del libro cubren snapshots, deltas, el borrado por tamaño `0`, los saltos
 de secuencia y la presión, con mensajes escritos a mano con la forma exacta que manda
 Bybit: **nunca se abre un WebSocket**, que haría la suite lenta y no determinista.
-Salen con código distinto de 0 si algo falla, así que sirven tal cual en CI.
+Los del PDF comprueban lo que se rompe en silencio: que cada entrada del `xref` cae
+justo donde empieza su objeto, que `/Length` es el número real de bytes, que los
+acentos viajan en WinAnsi y no en UTF-8, que ninguna línea se sale del papel y que el
+documento no cambia cuando cambia el catálogo. Salen con código distinto de 0 si algo
+falla, así que sirven tal cual en CI.
 
 El resto del frontend no tiene tests automáticos: se ha verificado a mano contra el
 backend real y contra Bybit real, pantalla por pantalla.
@@ -1033,6 +1233,12 @@ Decisiones tomadas hoy que hacen posibles esas fases:
         directo por WebSocket público
 15. [x] Frontend: formulario y veredicto de vuelta en una sola pantalla
         («Evaluación»), después de probarlos partidos en dos pestañas
+16. [x] Frontend: descarga del histórico en PDF, generado en el navegador y sin
+        dependencias nuevas
+17. [x] Journal libre en cada operación y puente visual Histórico ↔ Operaciones
+18. [x] Densidad de «Evaluación» (veredicto fijo, formulario compacto) y
+        rediseño de móvil: navegación inferior, veredicto en barra desplegable
+        y tablas convertidas en tarjetas
 
 ### Mejoras futuras
 

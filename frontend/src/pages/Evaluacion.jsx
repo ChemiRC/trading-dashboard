@@ -1,8 +1,10 @@
 import ConfluenceScore from "../components/decision/ConfluenceScore.jsx";
 import DecisionPanel from "../components/decision/DecisionPanel.jsx";
 import PermissionPanel from "../components/decision/PermissionPanel.jsx";
+import ResumenMovil from "../components/decision/ResumenMovil.jsx";
 import EvaluationForm from "../components/setup/EvaluationForm.jsx";
 import SaveSetupPanel from "../components/setup/SaveSetupPanel.jsx";
+import { PANTALLA, CONTENEDOR_DENSO } from "../lib/anchos.js";
 
 /**
  * Evaluación de setup: describir y decidir, en la misma pantalla.
@@ -56,9 +58,9 @@ export default function Evaluacion({ evaluacion, irA }) {
   );
 
   return (
-    <div className="min-h-screen bg-base px-6 py-10">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <header className="flex flex-wrap items-baseline justify-between gap-3">
+    <div className={PANTALLA}>
+      <div className={CONTENEDOR_DENSO}>
+        <header className="flex flex-wrap items-baseline justify-between gap-3 pr-14 sm:pr-0">
           <div>
             <h1 className="text-xl text-ink">Trading Dashboard</h1>
             <p className="mt-1 text-sm text-ink-dim">
@@ -80,7 +82,13 @@ export default function Evaluacion({ evaluacion, irA }) {
         {estadoCatalogo !== "ok" ? (
           formulario
         ) : (
-          <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          // En `2xl` la columna del veredicto pasa a ancho FIJO (28rem) y todo
+          // lo que sobra se lo queda el formulario. Con las dos en proporción,
+          // el veredicto crecía hasta 555 px y se llenaba de aire: sus paneles
+          // son un número grande y una lista corta, no ganan nada por
+          // ensancharse. El formulario sí: cada 250 px de más son otro botón
+          // de opción por fila.
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(0,1fr)_28rem] 2xl:gap-8">
             <div className="flex flex-col gap-6">
               {formulario}
               <SaveSetupPanel
@@ -91,7 +99,16 @@ export default function Evaluacion({ evaluacion, irA }) {
               />
             </div>
 
-            <div className="flex flex-col gap-6">
+            {/* **El veredicto se queda quieto.** El formulario es más largo que
+                la pantalla y el panel más corto, así que al desplazarse para
+                llegar a la sexta pregunta el resultado se iba de la vista justo
+                cuando más falta hacía verlo. Pegado arriba, marcar una opción y
+                ver moverse el balance ocurren en el mismo golpe de vista.
+
+                `top-16` lo deja por debajo de la barra de pestañas, que también
+                es pegajosa; `max-h` + `overflow-y-auto` son para que el propio
+                panel se pueda recorrer en pantallas bajas en vez de cortarse. */}
+            <div className="hidden lg:sticky lg:top-16 lg:flex lg:max-h-[calc(100vh-5rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pb-2">
               <DecisionPanel
                 status={status}
                 evaluation={evaluation}
@@ -109,6 +126,18 @@ export default function Evaluacion({ evaluacion, irA }) {
           </div>
         )}
       </div>
+
+      {/* Por debajo de `lg` no hay columna donde fijar nada: el veredicto pasa
+          a una barra sobre la navegación, que se despliega al tocarla. */}
+      {estadoCatalogo === "ok" && (
+        <ResumenMovil
+          status={status}
+          evaluation={evaluation}
+          error={error}
+          catalogo={catalogo}
+          pendientes={pendientes}
+        />
+      )}
     </div>
   );
 }

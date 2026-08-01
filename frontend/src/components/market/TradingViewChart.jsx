@@ -117,8 +117,13 @@ export default function TradingViewChart({ simbolo }) {
       </h2>
 
       {/* El contenido lo monta el efecto, no React: dentro de este nodo manda
-          TradingView y React no debe intentar reconciliar nada. */}
-      <div ref={contenedor} className="h-[520px]" />
+          TradingView y React no debe intentar reconciliar nada.
+
+          En pantallas grandes crece a lo alto además de a lo ancho: un gráfico
+          de velas con su panel de RSI debajo gana más de 200 px de alto que de
+          ancho, porque lo que se lee es el recorrido del precio, y en 520 px
+          el RSI queda aplastado en una banda de cien píxeles. */}
+      <div ref={contenedor} className="h-[520px] 2xl:h-[720px]" />
     </section>
   );
 }

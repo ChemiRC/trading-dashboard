@@ -4,6 +4,7 @@ import { listTrades } from "../api/trades.js";
 import SyncButton from "../components/trades/SyncButton.jsx";
 import TradeList from "../components/trades/TradeList.jsx";
 import Spinner from "../components/ui/Spinner.jsx";
+import { PANTALLA, CONTENEDOR_DENSO } from "../lib/anchos.js";
 
 /**
  * Operaciones ejecutadas: lo que de verdad pasó en el exchange.
@@ -90,9 +91,9 @@ export default function Trades() {
   const hayMas = total !== null && items.length < total;
 
   return (
-    <div className="min-h-screen bg-base px-6 py-10">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <header className="flex flex-wrap items-baseline justify-between gap-3">
+    <div className={PANTALLA}>
+      <div className={CONTENEDOR_DENSO}>
+        <header className="flex flex-wrap items-baseline justify-between gap-3 pr-14 sm:pr-0">
           <div>
             <h1 className="text-xl text-ink">Trading Dashboard</h1>
             <p className="mt-1 text-sm text-ink-dim">Operaciones ejecutadas</p>

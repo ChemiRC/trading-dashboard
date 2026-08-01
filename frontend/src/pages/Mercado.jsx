@@ -7,6 +7,7 @@ import SymbolPicker, { SIMBOLOS } from "../components/market/SymbolPicker.jsx";
 import TradingViewChart from "../components/market/TradingViewChart.jsx";
 import { useOrderBook } from "../hooks/useOrderBook.js";
 import { mejores } from "../lib/orderbook.js";
+import { PANTALLA, CONTENEDOR_DENSO } from "../lib/anchos.js";
 
 /**
  * Mercado: lo que está pasando ahí fuera, en directo.
@@ -48,9 +49,9 @@ export default function Mercado() {
   const atenuado = estado !== "vivo" && ultimoMensaje !== null;
 
   return (
-    <div className="min-h-screen bg-base px-6 py-10">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <header className="flex flex-wrap items-baseline justify-between gap-3">
+    <div className={PANTALLA}>
+      <div className={CONTENEDOR_DENSO}>
+        <header className="flex flex-wrap items-baseline justify-between gap-3 pr-14 sm:pr-0">
           <div>
             <h1 className="text-xl text-ink">Trading Dashboard</h1>
             <p className="mt-1 text-sm text-ink-dim">

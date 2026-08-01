@@ -4,6 +4,7 @@ import { getCatalog, getConfigHealth } from "../api/config.js";
 import ConfigHealth from "../components/settings/ConfigHealth.jsx";
 import IndicatorSettings from "../components/settings/IndicatorSettings.jsx";
 import ThresholdSettings from "../components/settings/ThresholdSettings.jsx";
+import { PANTALLA, CONTENEDOR_COMPACTO } from "../lib/anchos.js";
 
 /**
  * Punto de montaje de la entrega 9.
@@ -54,9 +55,9 @@ export default function Settings() {
   const alGuardar = useCallback(() => recargar(), [recargar]);
 
   return (
-    <div className="min-h-screen bg-base px-6 py-10">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <header>
+    <div className={PANTALLA}>
+      <div className={CONTENEDOR_COMPACTO}>
+        <header className="pr-14 sm:pr-0">
           <h1 className="text-xl text-ink">Trading Dashboard</h1>
           <p className="mt-1 text-sm text-ink-dim">Configuración de la estrategia</p>
         </header>

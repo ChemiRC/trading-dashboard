@@ -75,7 +75,14 @@ export default function OrderBookHeatmap({ libro, simbolo, n, atenuado }) {
         {max === 0 ? (
           <p className="animate-pulse px-4 py-8 text-ink-dim">Esperando el libro…</p>
         ) : (
-          <div ref={scroll} className="max-h-[30rem] overflow-y-auto px-2 py-2">
+          // En pantallas grandes la caja crece a lo alto: con N=20 son cuarenta
+          // filas y en 30rem solo caben unas veinte, así que había que
+          // desplazarse dentro del panel para ver los muros lejanos. Lo que NO
+          // cambia con el tamaño de la ventana es N: es la medida de la
+          // presión, y hacerla depender de cuánta pantalla haya significaría
+          // que el mismo libro da un número distinto en el portátil y en el
+          // monitor. Aquí solo se ve más de lo mismo.
+          <div ref={scroll} className="max-h-[30rem] overflow-y-auto px-2 py-2 2xl:max-h-[44rem]">
             {ventas.map((nivel) => (
               <Fila key={`a-${nivel.etiqueta}`} nivel={nivel} max={max} lado="venta" />
             ))}

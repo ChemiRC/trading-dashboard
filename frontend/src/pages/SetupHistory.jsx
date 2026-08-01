@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { listSetups } from "../api/setups.js";
+import ExportPdfButton from "../components/history/ExportPdfButton.jsx";
 import SetupList from "../components/history/SetupList.jsx";
 import Spinner from "../components/ui/Spinner.jsx";
+import { PANTALLA, CONTENEDOR_DENSO } from "../lib/anchos.js";
 
 /**
  * Histórico de setups guardados, del más reciente al más antiguo.
@@ -37,7 +39,7 @@ function comparar(a, b, campo) {
   return String(va).localeCompare(String(vb));
 }
 
-export default function SetupHistory() {
+export default function SetupHistory({ irA }) {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(null);
   const [estado, setEstado] = useState("cargando"); // cargando | ok | error | cargando-mas
@@ -97,9 +99,9 @@ export default function SetupHistory() {
   const hayMas = total !== null && items.length < total;
 
   return (
-    <div className="min-h-screen bg-base px-6 py-10">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <header className="flex flex-wrap items-baseline justify-between gap-3">
+    <div className={PANTALLA}>
+      <div className={CONTENEDOR_DENSO}>
+        <header className="flex flex-wrap items-baseline justify-between gap-3 pr-14 sm:pr-0">
           <div>
             <h1 className="text-xl text-ink">Trading Dashboard</h1>
             <p className="mt-1 text-sm text-ink-dim">Histórico de setups</p>
@@ -110,6 +112,14 @@ export default function SetupHistory() {
             </span>
           )}
         </header>
+
+        {/* La exportación va en la cabecera de la pantalla y no dentro de la
+            tabla: es una acción sobre el histórico entero, y ahí sigue
+            visible —deshabilitada y diciendo por qué— cuando todavía no hay
+            ni un setup que exportar. */}
+        {(estado === "ok" || estado === "cargando-mas") && (
+          <ExportPdfButton setups={itemsOrdenados} total={total} />
+        )}
 
         {estado === "cargando" && (
           <section className="rounded-lg border border-line bg-surface px-4 py-6">
@@ -151,6 +161,7 @@ export default function SetupHistory() {
               ordenPor={ordenPor}
               ordenAsc={ordenAsc}
               onOrdenar={ordenar}
+              irA={irA}
               onActualizado={(detalle) =>
                 // El detalle devuelto por el registro trae el outcome nuevo; la
                 // fila de la lista se actualiza sin recargar la página entera.
