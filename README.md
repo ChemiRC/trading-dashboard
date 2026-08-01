@@ -710,6 +710,100 @@ token llamado `none` chocaría con la clase `bg-none` que Tailwind ya trae de se
 Fuentes del sistema, sin CDN: una petición de red menos que pueda fallar y ningún
 tercero al que pedirle permiso.
 
+### La escala de densidad
+
+El dashboard se construyó pantalla a pantalla, y cada panel llegó a su propio padding
+por su cuenta: `px-4 py-2.5` aquí, `px-5 py-8` allá, `py-6` más allá. Ninguno estaba
+mal por sí solo —cada uno se justifica en su propio comentario— pero puestos uno al
+lado del otro en un monitor grande, el resultado es más aireado que el de las
+terminales que inspiran este proyecto: Bybit, Bloomberg Terminal, TradingView. Son
+herramientas pensadas para que quepa mucho dato en poco sitio, no para que cada cifra
+respire.
+
+La escala vive documentada en `index.css`, junto a los tokens de color. No son
+variables nuevas de Tailwind para el espaciado —la escala numérica que ya trae
+(`p-3`, `py-1.5`...) cubre de sobra todo lo de abajo, y tocar el `--spacing` global
+cambiaría el aspecto de la aplicación entera sin tocar ni una pantalla—. Es una
+**receta**: qué valor de esa escala usar en cada tipo de sitio, para que el resultado
+sea el mismo lo aplique quien lo aplique.
+
+Lo único que sí son tokens nuevos son dos tamaños de letra que a Tailwind le faltaban:
+
+| Token | Tamaño | Para qué |
+| --- | --- | --- |
+| `text-2xs` | 11px | Etiquetas de sección, cabeceras de panel |
+| `text-3xs` | 10px | Metadatos: pies, anotaciones, insignias |
+
+`text-xs` (12px) es el más pequeño de serie, y ya se había quedado corto: **49 sitios**
+del código escriben `text-[11px]` o `text-[10px]` a mano porque una etiqueta en
+mayúsculas no necesita el cuerpo de un párrafo. Formalizarlos no es decoración — es
+juntar en un solo sitio un número que ya se repetía suelto por cuarenta y nueve
+componentes, con el riesgo de que cada uno acabara en 10, 11 o 12px según quién lo
+escribiera ese día.
+
+**La receta**, por tipo de elemento:
+
+| Elemento | Antes | Ahora |
+| --- | --- | --- |
+| Página (`sm:` en adelante) | `sm:px-6 sm:py-10` · `2xl:px-10` | `sm:px-4 sm:py-5` · `2xl:px-6` |
+| Cabecera de panel (`<h2>`) | `px-4 py-2.5` `text-xs tracking-widest` | `px-3 py-1.5` `text-2xs tracking-wide` |
+| Cuerpo de panel, con contenido | `px-4 py-4` / `px-5 py-5` (según el panel) | `px-3 py-3` |
+| Fila dentro de una lista | `px-4 py-2.5` | `px-3 py-1.5` |
+| **Estado sin dato** (vacío, cargando, error) | `px-4 py-6` / `px-5 py-8` | `px-3 py-2` |
+
+El alto de página se parte exactamente por la mitad (40px → 20px): es el eje en el
+que la densidad se nota, porque decide cuántas filas o cuántos paneles caben sin
+desplazarse. El ancho baja un tercio y no la mitad (24px → 16px, no 12px): por debajo
+de 16px un borde de panel casi toca el borde de la ventana, y ese margen también hace
+de zona de lectura.
+
+**La regla que importa es la última fila de la tabla, y es la que de verdad cambia
+algo: un panel vacío deja de ser una caja vacía.** "Responde todos los indicadores
+para ver el veredicto." con `px-5 py-8` alrededor eran 64px de relleno vertical para
+una frase de una línea — casi tan alto como el panel de al lado ya lleno de dato real,
+y sin nada dentro. Puesto junto a un formulario de verdad, es lo que hacía que la
+columna del veredicto se viera "vacía y ligera" antes de contestar ni una pregunta.
+
+Los tres estados sin dato real —incompleto, cargando sin resultado previo, error—
+comparten ahora la misma receta estrecha: una sola línea, sin margen de sobra. No es
+"más pequeño": es que el panel deja de fingir que tiene algo que enseñar. Colapsa a la
+altura de una fila, el trader lee la frase y sigue mirando el formulario, y en cuanto
+hay dato real el panel **crece** a su tamaño normal — crece él, no se le reserva el
+hueco de antemano.
+
+Auditado en las seis pantallas, el patrón se repite igual en Mercado (el heatmap antes
+de que llegue el primer libro), en Histórico y en Operaciones (sin filas que enseñar)
+y en Configuración: no era un problema de tres paneles del formulario de evaluación,
+era el mismo patrón repetido seis veces.
+
+**Bordes y divisores en vez de espacio en blanco** para separar, donde ya no se hacía.
+Entre cabecera y cuerpo (`border-b`) y entre filas de una lista (`divide-y
+divide-line`) ya era así — eso no cambia, y es el patrón a copiar al tocar el resto de
+pantallas. Lo que **no** lleva un divisor es el interior de un mismo bloque de
+lectura: la píldora, el número y la barra del Decision Panel son una sola idea leída
+de un tirón, y meterles una línea entre medias la trocearía sin necesidad. El divisor
+separa secciones distintas; dentro de una, lo que separa es el margen ajustado.
+
+El balance grande del Decision Panel baja de `text-6xl` (60px) a `text-5xl` (48px).
+Sigue siendo, con diferencia, lo más grande del panel —cuatro veces la etiqueta de al
+lado— pero a 60px sobre una cabecera ya encogida a 11px quedaba desproporcionado.
+Sigue siendo el elemento dominante; deja de ser más grande de lo que ese dominio
+necesita.
+
+**Demostrado en un solo panel por ahora.** `DecisionPanel.jsx` es el primero en llevar
+la escala nueva, medido antes y después con el panel recortado en aislamiento a
+1440px:
+
+| | Antes | Ahora |
+| --- | --- | --- |
+| Alto vacío | 151px | **79px** (−48 %) |
+| Alto lleno | 256px | **192px** (−25 %) |
+
+Aplicarla al resto de pantallas —Confluence Score, Permission Panel, y el mismo patrón
+en Mercado, Histórico, Operaciones y Configuración— es el siguiente paso, no algo que
+ya esté hecho: el resto del dashboard sigue con el espaciado anterior hasta que se
+toque pantalla a pantalla.
+
 ---
 
 ## API

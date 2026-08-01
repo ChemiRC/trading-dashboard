@@ -53,6 +53,19 @@
   --font-mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", "SF Mono",
     "Segoe UI Mono", Consolas, "Liberation Mono", Menlo, monospace;
 
+  /* --- Los dos tamaños que le faltaban a la escala de Tailwind ---
+     `text-xs` (12px) es el más pequeño que trae de serie, y ya se había
+     quedado corto: 49 sitios del código escriben `text-[11px]` o
+     `text-[10px]` a mano porque una etiqueta de sección en mayúsculas no
+     necesita el cuerpo de un párrafo. Formalizarlos aquí no es decoración:
+     es juntar en un solo sitio un número que ya se repetía suelto por
+     cuarenta y nueve componentes, y que cada uno pudiera acabar en 10, 11 o
+     12px según quién lo escribiera ese día. */
+  --text-2xs: 0.6875rem;      /* 11px — etiquetas de sección, cabeceras de panel */
+  --text-2xs--line-height: 1rem;
+  --text-3xs: 0.625rem;       /* 10px — metadatos: pies, anotaciones, insignias */
+  --text-3xs--line-height: 0.875rem;
+
   /* --- Animación ---
      Rápidas y funcionales, no juguetonas: una terminal de trading no hace
      rebotes. `--animate-*` es la sintaxis de Tailwind v4 para generar
@@ -61,6 +74,104 @@
   --animate-fade-in: fade-in 200ms ease-out both;
   --animate-flash: flash 700ms ease-out;
 }
+
+/* ===========================================================================
+   ESCALA DE DENSIDAD
+
+   El dashboard se diseñó screen a screen, y cada panel llegó a su propio
+   padding por su cuenta: `px-4 py-2.5` aquí, `px-5 py-8` allá, `py-6` más
+   allá. Nunca fueron incoherentes entre sí -- cada uno se justifica en su
+   propio comentario -- pero el resultado, puesto uno al lado del otro en un
+   monitor grande, es una interfaz más aireada que la que enseñan Bybit,
+   Bloomberg Terminal o TradingView: terminales pensadas para que quepa
+   mucho dato en poco sitio, no para que cada cifra respire.
+
+   Esto no son tokens nuevos de Tailwind -- la escala numérica que ya trae
+   (`p-3`, `py-1.5`...) cubre de sobra todo lo de aquí abajo, y engordar el
+   `--spacing` global cambiaría el aspecto de la aplicación entera con solo
+   definir esta variable, sin tocar ni una pantalla. Es una **receta**: qué
+   valor de esa escala usar en cada tipo de sitio, para que el resultado sea
+   el mismo aunque lo apliquen manos distintas en pantallas distintas.
+   Fase A la deja escrita y demostrada en un panel (Decision Panel); aplicarla
+   al resto de pantallas es la Fase B.
+
+   ---------------------------------------------------------------------------
+   Página (`sm:` en adelante -- el móvil ya se ajustó aparte y no se toca)
+   ---------------------------------------------------------------------------
+   Antes:  sm:px-6 sm:py-10   2xl:px-10
+   Ahora:  sm:px-4 sm:py-5    2xl:px-6
+   El alto se parte exactamente por la mitad (40px → 20px): es el eje en el
+   que la densidad se nota, porque decide cuántas filas de tabla o cuántos
+   paneles caben sin desplazarse. El ancho baja un tercio y no la mitad
+   (24px → 16px, no 12px): por debajo de 16px un borde de panel casi toca el
+   borde de la ventana, y ese margen también hace de zona de lectura.
+
+   ---------------------------------------------------------------------------
+   Panel (`<section class="rounded-lg border ...">`, el contenedor de cada
+   bloque con su propio título -- Decision Panel, una tarjeta de Riesgo...)
+   ---------------------------------------------------------------------------
+   Cabecera (el `<h2>` con el título del panel):
+     Antes:  px-4 py-2.5   text-xs uppercase tracking-widest
+     Ahora:  px-3 py-1.5   text-2xs uppercase tracking-wide
+     Un paso menos de tamaño Y un paso menos de tracking a la vez: las dos
+     cosas que hacían el rótulo más ancho de lo que un rótulo necesita.
+
+   Cuerpo CON contenido:
+     Antes:  px-4 py-4  /  px-5 py-5
+     Ahora:  px-3 py-3
+     Un solo valor para cabecera y cuerpo en vez de cuatro combinaciones
+     distintas -- 4/2.5, 4/4, 5/5, 5/8 -- que convivían sin motivo real.
+
+   Fila dentro de una lista (Confluence Score, una tabla, un desglose):
+     Antes:  px-4 py-2.5
+     Ahora:  px-3 py-1.5
+
+   ---------------------------------------------------------------------------
+   LA REGLA QUE IMPORTA: un panel vacío no es una caja vacía
+   ---------------------------------------------------------------------------
+   "Responde todos los indicadores para ver el veredicto." con `px-5 py-8`
+   son 64px de relleno vertical alrededor de una frase de una línea -- casi
+   tan alto como el panel lleno de al lado, y sin nada dentro. Puesto junto a
+   un formulario de verdad, es lo que hacía que la columna del veredicto se
+   viera "vacía y ligera" antes de contestar ni una pregunta.
+
+   Los tres estados sin datos reales -- incompleto, cargando sin resultado
+   previo, y error -- usan la MISMA receta, y es deliberadamente estrecha:
+
+     px-3 py-2   text-xs   una sola línea, sin margen de sobra
+
+   Esto no es "más pequeño": es que el panel deja de fingir que tiene algo
+   que enseñar. Colapsa a la altura de una fila, el trader lee la frase y
+   sigue mirando el formulario, y en cuanto hay dato real el panel crece a su
+   tamaño normal -- crece él, no se le reserva el hueco de antemano.
+   Encontrado en los mismos términos en Mercado (el heatmap antes de que
+   llegue el primer libro), en Histórico y en Operaciones (las dos, sin
+   filas que enseñar) y en Configuración: no es un problema de tres paneles,
+   es un patrón que se repitió seis veces.
+
+   ---------------------------------------------------------------------------
+   Bordes y divisores en vez de espacio en blanco
+   ---------------------------------------------------------------------------
+   Ya era así entre cabecera y cuerpo (`border-b`) y entre filas de una lista
+   (`divide-y divide-line`) -- eso no cambia, y es el patrón a copiar cuando
+   se toque el resto de pantallas en la Fase B. Lo que NO lleva un divisor es
+   el interior de un mismo bloque de lectura: la píldora, el número y la
+   barra del Decision Panel son una sola idea leída de un tirón, y meterles
+   una línea entre medias la trocearía sin necesidad. El divisor separa
+   secciones distintas; dentro de una, lo que separa es el margen ajustado
+   de arriba.
+
+   ---------------------------------------------------------------------------
+   Números de dato
+   ---------------------------------------------------------------------------
+   El balance del Decision Panel baja de `text-6xl` (60px) a `text-5xl`
+   (48px). Sigue siendo, con diferencia, lo más grande del panel -- cuatro
+   veces el tamaño de la etiqueta de al lado -- pero a 60px sobre una
+   cabecera ya encogida a 11px quedaba desproporcionado: el resto de la
+   interfaz se volvió más densa a su alrededor y el número no tenía por qué
+   quedarse como estaba. Sigue siendo el elemento dominante del panel; deja
+   de ser más grande de lo que ese dominio necesita.
+   =========================================================================== */
 
 @keyframes fade-in {
   from {

@@ -9,6 +9,11 @@ import { conSigno } from "../../lib/format.js";
  * barra que lo hace comparable de un vistazo. Es el primer panel que mira el
  * trader, así que la barra es el elemento dominante -- ocupa el ancho
  * completo y es lo último y más grande que se pinta.
+ *
+ * **Panel de ejemplo de la escala de densidad** (ver `index.css`, sección
+ * ESCALA DE DENSIDAD). Es el primero en aplicarla porque era el caso más
+ * claro del problema que la origina: vacío, `px-5 py-8` alrededor de una
+ * frase lo dejaba casi tan alto como cuando sí hay veredicto que enseñar.
  */
 
 const ETIQUETA_DECISION = {
@@ -47,44 +52,47 @@ export default function DecisionPanel({ status, evaluation, error, maxAbsBalance
           : "border-line bg-surface"
       }`}
     >
-      <h2 className="flex items-center justify-between border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
+      <h2 className="flex items-center justify-between border-b border-line px-3 py-1.5 text-2xs uppercase tracking-wide text-ink-dim">
         Decisión
         {cargando && evaluation && <Spinner />}
       </h2>
 
+      {/* Los tres estados sin dato real comparten una sola receta -- una
+          línea, sin margen de sobra -- para que el panel no finja tener algo
+          que enseñar cuando no lo tiene. Ver ESCALA DE DENSIDAD en index.css. */}
       {status === "error" && (
-        <div className="animate-fade-in space-y-2 px-5 py-5">
-          <div className="text-short">{error?.code}</div>
-          <div className="text-ink">{error?.message}</div>
+        <div className="animate-fade-in px-3 py-2 text-xs">
+          <span className="text-short">{error?.code}</span>{" "}
+          <span className="text-ink">{error?.message}</span>
         </div>
       )}
 
       {status === "incompleto" && (
-        <div className="px-5 py-8 text-ink-dim">
+        <p className="px-3 py-2 text-xs text-ink-dim">
           Responde todos los indicadores para ver el veredicto.
-        </div>
+        </p>
       )}
 
       {cargando && !evaluation && (
-        <div className="animate-pulse px-5 py-8 text-ink-dim">Evaluando…</div>
+        <p className="animate-pulse px-3 py-2 text-xs text-ink-dim">Evaluando…</p>
       )}
 
       {(status === "ok" || cargando) && evaluation && (
         <div
-          className={`px-5 py-5 transition-opacity duration-200 ${
+          className={`px-3 py-3 transition-opacity duration-200 ${
             cargando ? "opacity-50" : "opacity-100"
           }`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span
-              className={`inline-flex items-center gap-1.5 rounded border px-3 py-1 text-sm uppercase tracking-widest transition-colors duration-300 ${
+              className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-0.5 text-xs uppercase tracking-wide transition-colors duration-300 ${
                 CLASE_PILDORA[evaluation.decision] ?? CLASE_PILDORA.NO_TRADE
               }`}
             >
               <IconoDireccion direccion={evaluation.decision} />
               {ETIQUETA_DECISION[evaluation.decision] ?? evaluation.decision}
             </span>
-            <span className="inline-flex items-center gap-1 text-xs text-ink-faint">
+            <span className="inline-flex items-center gap-1 text-2xs text-ink-faint">
               dirección deducida:{" "}
               <span
                 className={`inline-flex items-center gap-1 ${colorDireccion(evaluation.direction)}`}
@@ -95,14 +103,17 @@ export default function DecisionPanel({ status, evaluation, error, maxAbsBalance
             </span>
           </div>
 
+          {/* text-5xl y no el text-6xl de antes: sigue siendo, con diferencia,
+              lo más grande del panel -- cuatro veces la etiqueta de al lado --
+              pero 60px sobre una cabecera de 11px ya no estaba proporcionado. */}
           <AnimatedNumber
             valor={evaluation.raw_balance}
             formatear={(n) => conSigno(Math.round(n))}
             claseColor={colorBalance}
-            className="mt-4 block text-6xl leading-none tabular-nums"
+            className="mt-2 block text-5xl leading-none tabular-nums"
           />
 
-          <div className="mt-6">
+          <div className="mt-3">
             <BalanceBar valor={evaluation.raw_balance} max={maxAbsBalance} />
           </div>
         </div>
