@@ -107,7 +107,7 @@ export default function SaveSetupPanel({ selections, completo, decision, onVerHi
 
   return (
     <section className="@container shrink-0 rounded-lg border border-line bg-surface overflow-hidden">
-      <h2 className="border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
+      <h2 className="border-b border-line px-3 py-1.5 text-2xs uppercase tracking-wide text-ink-dim">
         Guardar en el histórico
       </h2>
 

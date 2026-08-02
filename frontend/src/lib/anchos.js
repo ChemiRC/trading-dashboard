@@ -26,8 +26,15 @@
  * lo que tiene que pasar.
  */
 
-/** El marco de cualquier pantalla: fondo, relleno y alto mínimo. */
-export const PANTALLA = "min-h-screen bg-base px-4 py-6 sm:px-6 sm:py-10 2xl:px-10";
+/** El marco de cualquier pantalla: fondo, relleno y alto mínimo.
+ *
+ * `2xl:py-6` (24px) recorta el `sm:py-10` (40px) que traía de antes, solo a
+ * partir de 1536px: un monitor grande tiene margen de sobra a los lados
+ * (por eso `CONTENEDOR_DENSO` se ensancha ahí) pero el alto sigue siendo el
+ * mismo número de píxeles físicos que en un portátil -- y el alto es
+ * justo lo que hace falta recuperar para que Evaluación quepa sin
+ * desplazarse. Medido: 16px menos de hueco antes de "Trading Dashboard". */
+export const PANTALLA = "min-h-screen bg-base px-4 py-6 sm:px-6 sm:py-10 2xl:px-10 2xl:py-6";
 
 /** Rejillas y tablas: se ensanchan hasta 1600 px. */
 export const CONTENEDOR_DENSO =

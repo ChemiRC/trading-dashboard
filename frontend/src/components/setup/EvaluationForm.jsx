@@ -64,7 +64,10 @@ export default function EvaluationForm({
 
   return (
     <section className="rounded-lg border border-line bg-surface overflow-hidden">
-      <h2 className="border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
+      {/* Misma receta de densidad que ya llevan Decision/Confluence/Permission
+          Panel (`px-3 py-1.5 text-2xs`) -- se había quedado fuera cuando se
+          escribió esa escala, y ahora sí hace falta el hueco que ahorra. */}
+      <h2 className="border-b border-line px-3 py-1.5 text-2xs uppercase tracking-wide text-ink-dim">
         Qué ves en el gráfico
       </h2>
       <ul className="divide-y divide-line lg:grid lg:grid-cols-2 lg:divide-y-0">

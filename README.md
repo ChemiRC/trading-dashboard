@@ -347,11 +347,23 @@ contenedor real casi siempre supera esos umbrales sin esfuerzo, así que los cam
 van en fila salvo en las columnas más angostas de móvil y tablet.
 
 Medido a 1920×1080 con los seis indicadores respondidos: el formulario (rejilla +
-guardado) termina en 1025 px, el veredicto en 902 px. Sigue sin caber del todo sin
-desplazarse en cualquier resolución —a 1440 px de ancho la página completa llega a
-1162 px— pero es un **scroll de página normal y visible**, no uno oculto dentro de una
-columna de altura fija: la regla que no se negocia es que nada se recorte en silencio,
-y eso sí está verificado en 1024, 1440, 1536 y 1920 px.
+guardado) terminaba en 1025 px sobre un lienzo de 1080 —cabía de sobra en el propio
+CDP, pero un navegador real le resta la barra de pestañas y direcciones, más la barra
+de tareas de Windows, así que el hueco útil real ronda los 950-990 px y ahí sí sobraba
+un poco—. Tres recortes, ninguno de tamaño de fuente ni de contenido, solo de aire:
+
+| Recorte | Ahorro |
+| --- | --- |
+| Relleno superior de la página a `2xl` (`py-10`→`py-6`, solo desde 1536px) | 16 px |
+| Hueco cabecera↔rejilla, propio de esta pantalla (`gap-6`→`gap-4`, sin tocar el de Operaciones/Histórico) | 8 px |
+| Cabeceras de «Qué ves en el gráfico» y «Guardar en el histórico» con la misma receta de densidad que ya llevaban Decisión/Confluence/Permission Panel | 16 px |
+| Hueco rejilla↔guardado (`gap-6`→`gap-4`) | 8 px |
+
+**1025 → 977 px** a 1920×1080 (48 px). Verificado con la misma regla de siempre —
+`scrollHeight > clientHeight` en cada panel, cero en los cuatro anchos probados
+(1024, 1440, 1536, 1920)— para que ningún recorte real se cuele detrás de un ahorro de
+espacio. Sigue siendo scroll de página normal y visible si el navegador real tiene
+mucho chrome propio; lo que ya no pasa es que se pierda información en silencio.
 
 Cada indicador lleva su icono y su nombre en negrita, y las opciones marcadas se
 distinguen por tres señales a la vez —borde claro, fondo elevado y una línea interior—

@@ -60,6 +60,13 @@ export default function Evaluacion({ evaluacion, irA }) {
   return (
     <div className={PANTALLA}>
       <div className={CONTENEDOR_DENSO}>
+        {/* `gap-4` propio en vez del `gap-6` de CONTENEDOR_DENSO -- que sigue
+            aplicándose igual en Operaciones e Histórico, no se toca la
+            constante compartida por 8px que solo hacían falta aquí. Con un
+            único hijo directo dentro de CONTENEDOR_DENSO, su gap-6 deja de
+            tener efecto (no hay hermano con quien dejar hueco) y manda este
+            gap-4 de dentro: cabecera y rejilla quedan 8px más juntas. */}
+        <div className="flex flex-col gap-4">
         <header className="flex flex-wrap items-baseline justify-between gap-3 pr-14 sm:pr-0">
           <div>
             <h1 className="text-xl text-ink">Trading Dashboard</h1>
@@ -107,7 +114,7 @@ export default function Evaluacion({ evaluacion, irA }) {
                 (Decisión/Confluence/Permission), mucho más corta -- y la
                 izquierda es rejilla + guardado, en flujo normal de página,
                 no dentro de la columna sticky con scroll interno. */}
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
               {formulario}
               <SaveSetupPanel
                 selections={selections}
@@ -154,6 +161,7 @@ export default function Evaluacion({ evaluacion, irA }) {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Por debajo de `lg` no hay columna donde fijar nada: el veredicto pasa
