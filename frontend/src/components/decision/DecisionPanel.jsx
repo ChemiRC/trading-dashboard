@@ -46,7 +46,7 @@ export default function DecisionPanel({ status, evaluation, error, maxAbsBalance
 
   return (
     <section
-      className={`rounded-lg border overflow-hidden transition-colors duration-300 ${
+      className={`shrink-0 rounded-lg border overflow-hidden transition-colors duration-300 ${
         status === "ok" && esNoTrade
           ? "border-flat/40 bg-flat/5"
           : "border-line bg-surface"

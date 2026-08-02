@@ -56,7 +56,7 @@ export default function PermissionPanel({ status, evaluation, error, thresholds 
   const cargando = status === "cargando";
 
   return (
-    <section className="rounded-lg border border-line bg-surface overflow-hidden">
+    <section className="shrink-0 rounded-lg border border-line bg-surface overflow-hidden">
       <h2 className="flex items-center justify-between border-b border-line px-3 py-1.5 text-2xs uppercase tracking-wide text-ink-dim">
         Permission Panel
         {cargando && evaluation && <Spinner />}
@@ -85,6 +85,20 @@ export default function PermissionPanel({ status, evaluation, error, thresholds 
           <PermissionBody evaluation={evaluation} thresholds={thresholds} />
         </div>
       )}
+
+      {/* Red de seguridad: los cuatro `status` que existen hoy
+          (incompleto/cargando/ok/error, ver useEvaluacion.js) ya están
+          todos cubiertos arriba, pero si alguna vez apareciera un quinto
+          valor sin actualizar este componente, las condiciones de arriba no
+          pintarían nada -- una sección con cabecera y el cuerpo vacío, que
+          es indistinguible de un panel roto. Esta línea solo aparece si
+          ningún otro caso lo hizo, así que nunca se ve dos veces. */}
+      {status !== "error" &&
+        status !== "incompleto" &&
+        !(cargando && !evaluation) &&
+        !((status === "ok" || cargando) && evaluation) && (
+          <p className="px-3 py-2 text-xs text-ink-faint">Sin datos que clasificar.</p>
+        )}
     </section>
   );
 }

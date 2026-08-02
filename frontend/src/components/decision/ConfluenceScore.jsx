@@ -80,7 +80,7 @@ export default function ConfluenceScore({ status, evaluation, error }) {
   const cambiadas = useFilasCambiadas(evaluation?.contributions);
 
   return (
-    <section className="rounded-lg border border-line bg-surface overflow-hidden">
+    <section className="shrink-0 rounded-lg border border-line bg-surface overflow-hidden">
       <h2 className="flex items-center justify-between border-b border-line px-3 py-1.5 text-2xs uppercase tracking-wide text-ink-dim">
         Confluence Score
         {cargando && evaluation && <Spinner />}
@@ -110,12 +110,20 @@ export default function ConfluenceScore({ status, evaluation, error }) {
             {evaluation.contributions.map((c) => (
               <li
                 key={c.indicator_code}
-                title={c.option_label}
-                className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1.5 text-sm ${
+                className={`flex flex-wrap items-start justify-between gap-x-4 gap-y-1 px-3 py-1.5 text-sm ${
                   cambiadas.has(c.indicator_code) ? "animate-flash" : ""
                 }`}
               >
-                <span className="min-w-0 flex-1 truncate">
+                {/* Antes `truncate`: con etiquetas largas ("Barrida la liquidez
+                    inferior (reversión al alza)") cortaba a media palabra con
+                    "…", y lo que se corta no se puede leer ni pasando el
+                    ratón -- el `title` de abajo era el único resquicio, y
+                    nadie pasa el ratón por una fila de un PDF ni de una app
+                    que se mira de un vistazo. `whitespace-normal` deja que la
+                    frase entera baje a una segunda línea; ya no hace falta
+                    `title` como red de seguridad porque ya no hay nada que
+                    esconder. */}
+                <span className="min-w-0 flex-1 whitespace-normal">
                   <span className="text-ink">{c.indicator_name}</span>{" "}
                   <span className="text-ink-dim">{c.option_label}</span>
                 </span>

@@ -242,7 +242,7 @@ trading-dashboard/
 │   │   │   ├── Trades.jsx           Operaciones ejecutadas y sincronización
 │   │   │   ├── Settings.jsx         Configuración de la estrategia
 │   │   │   └── ConnectionCheck.jsx  Diagnóstico (no montada; ver abajo)
-│   │   ├── App.jsx        Pestañas entre las seis pantallas
+│   │   ├── App.jsx        Pestañas entre las cinco pantallas
 │   │   ├── main.jsx       Punto de entrada de React
 │   │   └── index.css      Tokens de diseño (@theme de Tailwind)
 │   ├── tests/             test_risk · test_orderbook · test_pdf — sin framework
@@ -284,7 +284,7 @@ Tema oscuro, tipografía monoespaciada en todo el dashboard. Lo segundo no es es
 las cifras quedan alineadas en columna y `+30` / `−30` ocupan lo mismo, que es lo que
 hace comparable el desglose de un vistazo.
 
-### Las seis pantallas
+### Las cinco pantallas
 
 Se navega entre ellas con pestañas y estado local, **sin librería de routing**: ninguna
 necesita URL propia ni botón de atrás, así que un router sería una dependencia entera
@@ -294,10 +294,10 @@ o a configuración relee del backend en vez de enseñar una copia vieja.
 
 **La evaluación en curso es la excepción y vive por encima de las pestañas**, en el hook
 `useEvaluacion`. Si viviera dentro de «Evaluación» se perdería en cuanto el trader
-saliera de ella: marcaría sus seis opciones, iría a Mercado a mirar el libro o a Riesgo
-a calcular el tamaño, y al volver se encontraría el formulario en blanco. Colgado del
-componente que envuelve a todas, `/evaluate` se dispara en el momento de marcar la
-opción y el veredicto sigue ahí al volver, sin recalcular ni repreguntar el catálogo.
+saliera de ella: marcaría sus seis opciones, iría a Riesgo a calcular el tamaño, y al
+volver se encontraría el formulario en blanco. Colgado del componente que envuelve a
+todas, `/evaluate` se dispara en el momento de marcar la opción y el veredicto sigue ahí
+al volver, sin recalcular ni repreguntar el catálogo.
 
 **Describir y decidir van en la misma pantalla.** El formulario a la izquierda, el
 veredicto a la derecha, actualizándose con cada opción que se marca. Estuvo partido en
@@ -388,7 +388,6 @@ que se pintase sería una sucesión de 401.
 
 | Pestaña | Qué hace |
 | --- | --- |
-| **Mercado** | Precio con RSI y libro de órdenes en directo. Contexto, no evidencia |
 | **Evaluación** | Las 6 preguntas y, al lado, los tres paneles del veredicto y el guardado |
 | **Riesgo** | R:B, tamaño de posición, pérdida máxima, ratios ATR |
 | **Operaciones** | Lo ejecutado en el exchange: sincronización con Bybit y vínculo con su setup |
@@ -396,15 +395,18 @@ que se pintase sería una sucesión de 401.
 | **Configuración** | Pesos, puntos, bandas y el semáforo de salud |
 
 Cada pestaña lleva un icono para poder escanearlas de reojo, y la activa se marca con
-un filete superior además del cambio de fondo: con seis, el resaltado por sí solo se
-lee mal. «Evaluación» muestra además un punto ámbar mientras queden preguntas sin
-contestar, que es el único dato que el trader necesita ver sin ir a buscarlo desde
-cualquier otra pantalla.
+un filete superior además del cambio de fondo. «Evaluación» muestra además un punto
+ámbar mientras queden preguntas sin contestar, que es el único dato que el trader
+necesita ver sin ir a buscarlo desde cualquier otra pantalla, y es la pantalla de
+arranque: es a lo que se entra a hacer.
 
-«Mercado» va la primera porque es el orden en el que se mira —contexto, después
-describir y decidir— pero **la pantalla de arranque sigue siendo «Evaluación»**, que es
-a lo que se entra a hacer: abrir sesión no debería levantar un WebSocket y un iframe de
-TradingView que quizá no se van a mirar.
+**«Mercado» se retiró de la navegación** —precio con RSI y libro de órdenes en
+directo, contexto y no evidencia— y con ella la barra móvil pasó de 6 a 5 celdas. El
+código sigue en `pages/Mercado.jsx` y sus componentes en `components/market/`, sin
+borrar y sin usarse: no se quitó el archivo, solo se desconectó la pestaña, así que
+recuperarla es rehacer dos líneas en `App.jsx` y no reescribir nada. Ver
+[Mercado: datos en directo sin pasar por el backend](#mercado-datos-en-directo-sin-pasar-por-el-backend)
+para el porqué de sus decisiones, que siguen siendo válidas si se retoma.
 
 ### El ancho no es el mismo en todas las pantallas
 
@@ -482,6 +484,11 @@ entrega 5 —demostrar que el frontend llega a Supabase de punta a punta— y se
 como herramienta de diagnóstico a la que se vuelve editando `App.jsx`.
 
 ### Mercado: datos en directo sin pasar por el backend
+
+> **Retirada de la navegación.** Ya no hay pestaña «Mercado» ni botón que la muestre —
+> ver [Las cinco pantallas](#las-cinco-pantallas)—. Lo de aquí abajo describe el código
+> tal como sigue en el repositorio, sin usarse: nada se borró, así que esto es la
+> documentación de lo que hay si algún día se reconecta, no de lo que se ve hoy.
 
 Es la única pantalla que **no habla con el backend**. El gráfico lo sirve TradingView y
 el libro de órdenes viene del **WebSocket público de Bybit**, los dos directos desde el
@@ -1423,6 +1430,9 @@ Decisiones tomadas hoy que hacen posibles esas fases:
         y tablas convertidas en tarjetas
 19. [x] El PDF del histórico se agrupa por mes, como un estado de cuenta —
         resumen de LONG/SHORT/NO TRADE y de resultados antes del detalle
+20. [x] Confluence Score deja de truncar etiquetas largas (salto de línea, no
+        `…`); red de seguridad en Permission Panel para que nunca quede sin
+        pintar nada; pestaña «Mercado» retirada de la navegación
 
 ### Mejoras futuras
 

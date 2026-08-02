@@ -115,7 +115,24 @@ export default function Evaluacion({ evaluacion, irA }) {
                 `top-16` lo deja por debajo de la barra de pestañas, que
                 también es pegajosa; `max-h` + `overflow-y-auto` son para que
                 la columna entera -- veredicto y guardado -- se pueda recorrer
-                en pantallas bajas en vez de cortarse. */}
+                en pantallas bajas en vez de cortarse.
+
+                **Cada panel hijo necesita `shrink-0`, si no el recorte pasa de
+                verdad.** Los cuatro (`DecisionPanel`, `ConfluenceScore`,
+                `PermissionPanel`, `SaveSetupPanel`) llevan `overflow-hidden`
+                en su propio `<section>` -- solo para recortar las esquinas
+                redondeadas del borde, nada relacionado con esto. Pero la spec
+                de flexbox dice que el tamaño mínimo automático de un hijo
+                flex solo respeta el tamaño de su contenido si su overflow es
+                `visible`; con `overflow-hidden` ese mínimo pasa a ser 0. Con
+                el contenedor limitado en altura (`max-h` de aquí arriba), el
+                navegador prefería **encoger cada panel por debajo de su
+                contenido real** -- cortándolo en silencio, sin scrollbar que
+                avisara -- antes que agrandar el contenedor y dejarlo
+                desplazarse. Se vio en 1920×1080: Permission Panel perdía sus
+                últimos 10px, Confluence Score 51px enteros. `shrink-0` en
+                cada panel se lo prohíbe, y con eso el contenedor sí crece
+                más allá de `max-h` y scrollea de verdad. */}
             <div className="flex flex-col gap-6 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:gap-4 lg:overflow-y-auto lg:pb-2">
               <div className="hidden lg:contents">
                 <DecisionPanel

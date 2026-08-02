@@ -7,14 +7,12 @@ import {
   IconoConfiguracion,
   IconoDecision,
   IconoHistorico,
-  IconoMercado,
   IconoOperaciones,
   IconoRiesgo,
 } from "./components/ui/Icons.jsx";
 import { useEvaluacion } from "./hooks/useEvaluacion.js";
 import Evaluacion from "./pages/Evaluacion.jsx";
 import Login from "./pages/Login.jsx";
-import Mercado from "./pages/Mercado.jsx";
 import RiskCalculation from "./pages/RiskCalculation.jsx";
 import Settings from "./pages/Settings.jsx";
 import SetupHistory from "./pages/SetupHistory.jsx";
@@ -32,8 +30,14 @@ import Trades from "./pages/Trades.jsx";
  * así que cada visita al histórico, a operaciones o a configuración relee del
  * backend en vez de enseñar una copia vieja. La **excepción es la evaluación
  * en curso**, que vive en `useEvaluacion` por encima de todas: si viviera
- * dentro de su pestaña, ir a Mercado a mirar el libro o a Riesgo a calcular el
- * tamaño devolvería al trader un formulario en blanco.
+ * dentro de su pestaña, ir a Riesgo a calcular el tamaño devolvería al trader
+ * un formulario en blanco.
+ *
+ * **«Mercado» se retiró de la navegación.** La pantalla y sus componentes
+ * (gráfico de TradingView, libro de órdenes por WebSocket) se quedan en el
+ * repositorio sin usarse -- no se borraron los archivos, solo se desconectó
+ * la pestaña -- por si se recupera más adelante; nada del resto del
+ * dashboard depende de ellos.
  *
  * Por encima de todo hay una puerta: sin token no se monta nada. No es la
  * comprobación de seguridad -- esa la hace el backend, que rechaza cualquier
@@ -43,7 +47,6 @@ import Trades from "./pages/Trades.jsx";
 //: `corta` es la etiqueta de la barra inferior de móvil: seis celdas en 375 px
 //: dan unos 60 px por celda, y «Configuración» ahí no cabe ni partido.
 const PESTANAS = [
-  { id: "mercado", etiqueta: "Mercado", corta: "Mercado", Icono: IconoMercado, Pantalla: Mercado },
   { id: "evaluacion", etiqueta: "Evaluación", corta: "Evaluar", Icono: IconoDecision, Pantalla: Evaluacion },
   { id: "riesgo", etiqueta: "Riesgo", corta: "Riesgo", Icono: IconoRiesgo, Pantalla: RiskCalculation },
   { id: "operaciones", etiqueta: "Operaciones", corta: "Operac.", Icono: IconoOperaciones, Pantalla: Trades },
@@ -51,13 +54,7 @@ const PESTANAS = [
   { id: "config", etiqueta: "Configuración", corta: "Ajustes", Icono: IconoConfiguracion, Pantalla: Settings },
 ];
 
-/**
- * «Mercado» va la primera porque es el orden en el que se mira —contexto,
- * después describir y decidir— pero **la pantalla de arranque sigue siendo
- * «Evaluación»**, que es a lo que se entra a hacer. Abrir sesión no debería
- * levantar un WebSocket y un iframe de TradingView que quizá no se van a
- * mirar.
- */
+/** La pantalla de arranque es «Evaluación», que es a lo que se entra a hacer. */
 const PESTANA_INICIAL = "evaluacion";
 
 export default function App() {
@@ -180,8 +177,9 @@ function Dashboard({ onCerrarSesion }) {
  * sin desplazarse, que es el gesto que más se repite.
  *
  * Se eligió barra y no menú desplegable a propósito: un desplegable esconde
- * dónde está uno y cuesta dos toques en vez de uno. Con seis destinos —el
- * límite razonable de este patrón— caben todos a la vista.
+ * dónde está uno y cuesta dos toques en vez de uno. Con cinco destinos —el
+ * límite razonable de este patrón está más arriba, en seis— caben todos a
+ * la vista.
  *
  * «Cerrar sesión» no entra aquí: no es un destino, y ponerlo entre las
  * pestañas invita a pulsarlo por error con el pulgar. Vive arriba, en la
@@ -200,7 +198,7 @@ function NavegacionMovil({ activa, onCambiar, avisoEn, onCerrarSesion }) {
 
       <nav
         aria-label="Pantallas"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface sm:hidden"
       >
         {PESTANAS.map((p) => {
           const esActiva = p.id === activa;
