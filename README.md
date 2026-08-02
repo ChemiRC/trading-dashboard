@@ -728,6 +728,42 @@ diccionarios usan PDFDocEncoding, así que la raya del título salía como `Š`.
 producían un PDF que abría sin quejarse. Por eso el archivo generado se abre y se mira,
 además de pasar los tests.
 
+**Se agrupa por mes, como un estado de cuenta.** Una lista continua de cien setups no
+dice nada por sí sola; separada en secciones —AGOSTO 2026, JULIO 2026…, la más reciente
+primero— con un resumen antes del detalle de cada una, se lee como el registro de
+disciplina que el histórico quiere ser, no como un volcado de tabla.
+
+El mes es el de `evaluated_at` —el día que se **decidió**, no el día en que se
+**cerró** el resultado—: un setup evaluado el 30 de julio y cerrado el 3 de agosto
+cuenta en el resumen de julio, porque julio es cuando hizo falta la evidencia y la
+disciplina de seguirla o no. Un `evaluated_at` ausente o inválido —no debería pasar,
+pero `new Date(null)` da la época Unix y no un error— cae en un cajón «SIN FECHA» al
+final, en vez de colarse en enero de 1970 sin que nadie lo note.
+
+Cada sección lleva una banda gris con el nombre del mes en mayúsculas y, debajo, su
+resumen: cuántos setups, el desglose LONG/SHORT/NO TRADE, y —solo si hay alguno con
+resultado registrado ese mes— cuántos ganados/perdidos/breakeven y la suma del PnL. Los
+recuentos no reescriben ninguna regla: leen `decision` y `outcome` tal como los expone
+`v_setups_with_outcome` en el backend, el mismo campo que ya pinta la pantalla, y solo
+suman el PnL de los setups que lo tienen —uno con resultado declarado a mano sin PnL
+del exchange cuenta en «ganados» pero no en la suma, que sigue siendo exacta con los
+datos que sí hay—. Un mes sin ningún setup no genera sección: la agrupación solo crea
+un cajón por cada mes que aparece de verdad en los datos exportados.
+
+La cabecera de un mes reserva su espacio **más** el de al menos un setup de un tirón
+—el mismo principio que ya evita una cabecera de setup huérfana al pie de página, un
+nivel más arriba—: sin eso, una sección podría empezar en las últimas líneas de una
+página y dejar su banda sola, con todos sus setups ya en la siguiente.
+
+Verificado con datos reales: los 2 setups guardados (ambos de julio) más tres
+`ZZTEST` creados y borrados para tener un segundo mes, uno con resultado ganado y otro
+perdido. El PDF descargado desde la propia interfaz separó AGOSTO 2026 y JULIO 2026 en
+ese orden, con «2 con resultado · 1 ganada, 1 perdida, 0 breakeven · PnL del mes:
++23.50 USDT» en agosto —42.00 más −18.50, contado a mano contra el resumen— y «2
+ganadas… PnL del mes: +50.00 USDT» en julio, donde uno de los dos setups ganados no
+tenía PnL del exchange y por eso no entra en la suma. 8 tests nuevos cubren el
+agrupado, el orden de los meses, la aritmética del resumen y el cajón de «sin fecha».
+
 ### Tokens de color
 
 | Token | Para qué |
@@ -827,19 +863,34 @@ lado— pero a 60px sobre una cabecera ya encogida a 11px quedaba desproporciona
 Sigue siendo el elemento dominante; deja de ser más grande de lo que ese dominio
 necesita.
 
-**Demostrado en un solo panel por ahora.** `DecisionPanel.jsx` es el primero en llevar
-la escala nueva, medido antes y después con el panel recortado en aislamiento a
-1440px:
+**Aplicada, panel a panel, con captura antes/después en cada uno** —no de golpe—, para
+comprobar que la receta generaliza antes de tocar pantallas con una estructura
+distinta. Medido con cada panel recortado en aislamiento a 1440px:
 
-| | Antes | Ahora |
-| --- | --- | --- |
-| Alto vacío | 151px | **79px** (−48 %) |
-| Alto lleno | 256px | **192px** (−25 %) |
+| Panel | Estado | Antes | Ahora |
+| --- | --- | --- | --- |
+| Decision Panel | vacío | 151px | **79px** (−48 %) |
+| Decision Panel | lleno | 256px | **192px** (−25 %) |
+| Confluence Score | vacío | 135px | **79px** (−41 %) |
+| Confluence Score | lleno (6 filas) | 337px | **281px** (−17 %) |
+| Permission Panel | vacío | 135px | **79px** (−41 %) |
+| Permission Panel | lleno, con clasificación | 123px | 83px |
+| Permission Panel | NO TRADE, con motivo | — | 211px |
 
-Aplicarla al resto de pantallas —Confluence Score, Permission Panel, y el mismo patrón
-en Mercado, Histórico, Operaciones y Configuración— es el siguiente paso, no algo que
-ya esté hecho: el resto del dashboard sigue con el espaciado anterior hasta que se
-toque pantalla a pantalla.
+Los tres estados del vacío convergen exactamente en el mismo alto (79px) porque
+comparten la misma receta —`px-3 py-2`, una línea— sea cual sea el panel: es la prueba
+de que la regla generaliza sin variaciones por pantalla, tal como se pretendía.
+
+Confirmado antes de aplicar cada panel: la cabecera de Permission Panel medía `10px`
+de `padding-top` en el DOM antes de tocarla, y ninguna otra pantalla se movió con
+solo definir los tokens nuevos en `index.css` — son aditivos, no cambian nada hasta
+que un componente los usa.
+
+**Pendiente**: el mismo patrón en Mercado (el heatmap antes del primer libro),
+Histórico, Operaciones y Configuración. Esas cuatro tienen tablas y listas densas en
+vez de paneles de resumen, así que antes de aplicar la misma receta sin más se
+evaluará si generaliza igual de bien o si hace falta un criterio distinto para filas
+de tabla — se decide cuando toque, no se fuerza de antemano.
 
 ---
 
@@ -1207,7 +1258,7 @@ El puerto es `strictPort`: si el 5173 está ocupado, Vite falla en vez de saltar
 5174. El backend autoriza por CORS una lista blanca concreta, así que cambiar de puerto
 en silencio convertiría un "puerto ocupado" en un error de CORS incomprensible.
 
-Tests (89: 15 de riesgo, 33 del libro de órdenes y 41 del PDF):
+Tests (97: 15 de riesgo, 33 del libro de órdenes y 49 del PDF):
 
 ```powershell
 cd frontend
@@ -1370,6 +1421,8 @@ Decisiones tomadas hoy que hacen posibles esas fases:
 18. [x] Densidad de «Evaluación» (veredicto fijo, formulario compacto) y
         rediseño de móvil: navegación inferior, veredicto en barra desplegable
         y tablas convertidas en tarjetas
+19. [x] El PDF del histórico se agrupa por mes, como un estado de cuenta —
+        resumen de LONG/SHORT/NO TRADE y de resultados antes del detalle
 
 ### Mejoras futuras
 

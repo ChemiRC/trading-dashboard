@@ -10,16 +10,24 @@ import Insignia from "../ui/Insignia.jsx";
  * marca. El estado vive en `useEvaluacion`, por encima de las pestañas, para
  * que salir de «Evaluación» y volver no lo tire (ver ese hook).
  *
- * **Compacto a propósito.** Cada indicador ocupa una franja con el nombre a la
- * izquierda y sus opciones fluyendo a la derecha, en vez de un bloque apilado
- * con el nombre encima. Con seis preguntas, la versión apilada obligaba a
- * desplazarse para llegar a la última y dejaba el veredicto fuera de la
- * pantalla al mismo tiempo. Aquí las seis caben a la vez en un monitor normal
- * y el panel de la derecha se queda fijo al lado (ver `pages/Evaluacion.jsx`).
+ * **Compacto a propósito.** De escritorio (`lg:`) en adelante las seis
+ * preguntas se organizan en una rejilla de 2 columnas -- 3 filas de 2, mismo
+ * orden que el catálogo -- para que quepan enteras sin desplazarse ni robarle
+ * media pantalla al panel del veredicto (ver `pages/Evaluacion.jsx`). Los
+ * divisores que antes separaban filas (`divide-y`) no sirven dentro de una
+ * rejilla -- ponen la línea al final de cada elemento en orden de DOM, que en
+ * dos columnas cae donde no toca -- así que cada bloque calcula el suyo: borde
+ * inferior si no es de la última fila, borde izquierdo si es la columna
+ * derecha.
  *
- * En móvil la franja se apila —no hay ancho para dos columnas— y los botones
- * crecen hasta un área de toque cómoda: son el control que más se pulsa de
- * toda la aplicación.
+ * Las opciones de cada indicador ya envuelven con `flex-wrap`: al angostarse
+ * la columna, un indicador con etiquetas largas ("Patrones gráficos") pasa
+ * solo a partir sus opciones en dos líneas dentro de su propio bloque, sin
+ * necesitar ningún caso especial.
+ *
+ * Por debajo de `lg` no hay ancho para dos columnas: sigue siendo una lista
+ * apilada con `divide-y`, igual que antes, y los botones crecen hasta un área
+ * de toque cómoda -- son el control que más se pulsa de toda la aplicación.
  *
  * Los indicadores y sus opciones vienen enteros del catálogo: aquí no hay ni
  * un peso ni un nombre escrito. El icono se elige por `code`, que es estable
@@ -59,13 +67,19 @@ export default function EvaluationForm({
       <h2 className="border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
         Qué ves en el gráfico
       </h2>
-      <ul className="divide-y divide-line">
-        {indicadores.map((indicador) => (
+      <ul className="divide-y divide-line lg:grid lg:grid-cols-2 lg:divide-y-0">
+        {indicadores.map((indicador, i) => (
           <IndicatorField
             key={indicador.code}
             indicador={indicador}
             valor={selections[indicador.code] ?? null}
             onElegir={(optionCode) => onElegir(indicador.code, optionCode)}
+            // Fila: todas menos la última llevan borde inferior en la rejilla.
+            // Columna: la derecha (índice impar, col-2 en orden de DOM) lleva
+            // borde izquierdo -- salvo que ya tenga el acento de "puerta", que
+            // es también un borde izquierdo y no hay que competir con él.
+            bordeInferior={Math.floor(i / 2) < Math.floor((indicadores.length - 1) / 2)}
+            bordeIzquierdo={i % 2 === 1}
           />
         ))}
       </ul>
@@ -73,18 +87,23 @@ export default function EvaluationForm({
   );
 }
 
-function IndicatorField({ indicador, valor, onElegir }) {
+function IndicatorField({ indicador, valor, onElegir, bordeInferior, bordeIzquierdo }) {
   const sinResponder = valor === null;
 
   return (
     <li
-      className={`px-4 py-2.5 ${
+      className={`px-4 py-1.5 ${
         // El indicador puerta es estructuralmente distinto -- puede bloquear
         // todo el resultado (Regla A) -- así que se insinúa con un acento en
         // el borde izquierdo antes de que nadie llegue a leer la etiqueta.
         // El resto de la fila no lleva tinte: solo el canto, para que siga
         // leyéndose como parte de la misma lista y no como una tarjeta aparte.
         indicador.is_gate ? "border-l-2 border-l-cls-medium bg-cls-medium/[0.03]" : ""
+      } ${bordeInferior ? "lg:border-b lg:border-line" : ""} ${
+        // Si ya lleva el acento de puerta, ese borde izquierdo no se toca:
+        // dos colores compitiendo por el mismo canto se verían mal, y el
+        // acento de puerta es la señal más importante de las dos.
+        bordeIzquierdo && !indicador.is_gate ? "lg:border-l lg:border-line" : ""
       }`}
     >
       {/* El nombre encima y las opciones debajo, a todo el ancho de la

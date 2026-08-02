@@ -19,6 +19,7 @@ import {
   crearDocumento,
   partirEnLineas,
 } from "../src/lib/pdf.js";
+import { formatFecha } from "../src/lib/format.js";
 import { construirReporteSetups, nombreDeArchivo } from "../src/lib/reporteSetups.js";
 
 let pasados = 0;
@@ -447,6 +448,117 @@ caso("informe: ningún texto invade el margen inferior salvo el pie", () => {
   for (const { y } of cuerpo) {
     assert.ok(y >= 41.9, `una línea del cuerpo baja a ${y}, por debajo del margen`);
   }
+});
+
+// --- Agrupación por mes -----------------------------------------------------
+
+const AGOSTO_LONG = { ...SETUP, id: "a1", evaluated_at: "2026-08-05T10:00:00Z" };
+const AGOSTO_SHORT = {
+  ...SETUP, id: "a2", evaluated_at: "2026-08-12T10:00:00Z",
+  decision: "SHORT", direction: "SHORT", raw_balance: -60,
+  outcome: "LOSS", pnl_net: "-30.00",
+};
+const AGOSTO_NOTRADE = { ...NO_TRADE, id: "a3", evaluated_at: "2026-08-20T10:00:00Z" };
+const JULIO_1 = { ...SETUP, id: "j1", evaluated_at: "2026-07-02T10:00:00Z" };
+const JULIO_2 = {
+  ...SETUP, id: "j2", evaluated_at: "2026-07-15T10:00:00Z",
+  outcome: "BREAKEVEN", pnl_net: "0",
+};
+
+caso("meses: separa AGOSTO 2026 y JULIO 2026, el más reciente primero", () => {
+  const texto = comoTexto(construirReporteSetups([AGOSTO_LONG, JULIO_1]));
+  const posAgosto = texto.indexOf(aCadenaHex("AGOSTO 2026").slice(1, -1));
+  const posJulio = texto.indexOf(aCadenaHex("JULIO 2026").slice(1, -1));
+  assert.ok(posAgosto !== -1, "no aparece el encabezado de agosto");
+  assert.ok(posJulio !== -1, "no aparece el encabezado de julio");
+  assert.ok(posAgosto < posJulio, "agosto (más reciente) debería ir primero");
+});
+
+caso("meses: el resumen cuenta LONG/SHORT/NO TRADE correctamente", () => {
+  // Agosto tiene: 1 LONG, 1 SHORT, 1 NO TRADE -- verificado contando a mano
+  // el array de arriba, no reescribiendo la lógica de conteo aquí.
+  const texto = comoTexto(construirReporteSetups([AGOSTO_LONG, AGOSTO_SHORT, AGOSTO_NOTRADE]));
+  assert.ok(
+    texto.includes(aCadenaHex("3 setups evaluados").slice(1, -1)),
+    "no dice el total correcto de setups",
+  );
+  assert.ok(
+    texto.includes(aCadenaHex("1 LONG").slice(1, -1)),
+    "no cuenta 1 LONG",
+  );
+  assert.ok(
+    texto.includes(aCadenaHex("1 SHORT").slice(1, -1)),
+    "no cuenta 1 SHORT",
+  );
+  assert.ok(
+    texto.includes(aCadenaHex("1 NO TRADE").slice(1, -1)),
+    "no cuenta 1 NO TRADE",
+  );
+});
+
+caso("meses: el resumen de resultados y el PnL del mes cuadran", () => {
+  // Agosto: AGOSTO_LONG (WIN, +125.50), AGOSTO_SHORT (LOSS, -30.00),
+  // AGOSTO_NOTRADE no cuenta (decision NO_TRADE hereda outcome:null de
+  // NO_TRADE). Total con resultado: 2. PnL: 125.50 - 30.00 = 95.50.
+  const texto = comoTexto(construirReporteSetups([AGOSTO_LONG, AGOSTO_SHORT, AGOSTO_NOTRADE]));
+  assert.ok(
+    texto.includes(aCadenaHex("2 con resultado").slice(1, -1)),
+    "no dice 2 con resultado",
+  );
+  assert.ok(
+    texto.includes(aCadenaHex("1 ganada").slice(1, -1)),
+    "no cuenta 1 ganada",
+  );
+  assert.ok(
+    texto.includes(aCadenaHex("1 perdida").slice(1, -1)),
+    "no cuenta 1 perdida",
+  );
+  assert.ok(
+    texto.includes(aCadenaHex("PnL del mes: +95.50 USDT").slice(1, -1)),
+    "el PnL del mes no suma 95.50",
+  );
+});
+
+caso("meses: sin resultados registrados, no aparece la línea de resultados", () => {
+  const sinResultado = { ...SETUP, outcome: null, pnl_net: null, result_created_at: null, result_updated_at: null };
+  const texto = comoTexto(construirReporteSetups([sinResultado]));
+  assert.ok(!texto.includes(aCadenaHex("con resultado").slice(1, -1)));
+});
+
+caso("meses: un mes sin ningún setup no genera sección -- solo aparecen dos meses, no tres", () => {
+  // JULIO_1 y JULIO_2 son julio; AGOSTO_LONG es agosto. Nunca se menciona
+  // septiembre porque no hay ni un setup ahí.
+  const texto = comoTexto(construirReporteSetups([AGOSTO_LONG, JULIO_1, JULIO_2]));
+  assert.ok(!texto.includes(aCadenaHex("SEPTIEMBRE").slice(1, -1)));
+  const paginaTexto = texto; // un solo documento pequeño, no hace falta separar por página
+  const vecesAgosto = paginaTexto.split(aCadenaHex("AGOSTO 2026").slice(1, -1)).length - 1;
+  const vecesJulio = paginaTexto.split(aCadenaHex("JULIO 2026").slice(1, -1)).length - 1;
+  assert.equal(vecesAgosto, 1, "el encabezado de agosto debería aparecer una sola vez");
+  assert.equal(vecesJulio, 1, "el encabezado de julio debería aparecer una sola vez");
+});
+
+caso("meses: dentro de un mes, julio conserva sus 2 setups y agosto solo el suyo", () => {
+  const texto = comoTexto(construirReporteSetups([AGOSTO_LONG, JULIO_1, JULIO_2]));
+  // JULIO_1 y JULIO_2 comparten símbolo y precio con AGOSTO_LONG (mismo
+  // fixture base), así que lo que distingue las filas es la fecha exacta.
+  assert.ok(texto.includes(aCadenaHex(formatFecha(JULIO_1.evaluated_at)).slice(1, -1)));
+  assert.ok(texto.includes(aCadenaHex(formatFecha(JULIO_2.evaluated_at)).slice(1, -1)));
+  assert.ok(texto.includes(aCadenaHex(formatFecha(AGOSTO_LONG.evaluated_at)).slice(1, -1)));
+});
+
+caso("meses: el formato de cada setup no cambió -- sigue con su desglose congelado", () => {
+  // El bloque 2 no debía tocar cómo se ve un setup individual. Misma
+  // comprobación que ya existía para el documento sin agrupar.
+  const texto = comoTexto(construirReporteSetups([AGOSTO_LONG]));
+  assert.ok(texto.includes(aCadenaHex("+30 / 30").slice(1, -1)));
+  assert.ok(texto.includes(aCadenaHex("Desglose congelado").slice(1, -1)));
+});
+
+caso("meses: sin fecha válida cae en un cajón aparte y no en 1970", () => {
+  const sinFecha = { ...SETUP, evaluated_at: null };
+  const texto = comoTexto(construirReporteSetups([sinFecha]));
+  assert.ok(texto.includes(aCadenaHex("SIN FECHA").slice(1, -1)));
+  assert.ok(!texto.includes(aCadenaHex("1970").slice(1, -1)));
 });
 
 caso("nombre de archivo: ordenable por fecha", () => {

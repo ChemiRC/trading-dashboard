@@ -22,23 +22,25 @@ function PermissionBody({ evaluation, thresholds }) {
   const banda = thresholds?.find((t) => t.code === evaluation.classification_code) ?? null;
 
   return (
-    <div className="space-y-4 px-4 py-4">
+    <div className="space-y-3 px-3 py-3">
       {banda ? (
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <span className={`text-lg ${CLASE_POR_TOKEN[banda.color_token] ?? "text-ink"}`}>
             {banda.label}
           </span>
-          <span className="tabular-nums text-sm text-ink-dim">
+          <span className="tabular-nums text-xs text-ink-dim">
             |balance| {banda.min_abs_balance}–{banda.max_abs_balance}
           </span>
         </div>
       ) : (
-        <div className="text-flat">Sin clasificación: la Regla A cortó antes de calcular balance.</div>
+        <div className="text-sm text-flat">
+          Sin clasificación: la Regla A cortó antes de calcular balance.
+        </div>
       )}
 
       {evaluation.decision === "NO_TRADE" && evaluation.no_trade_reason && (
-        <div className="animate-fade-in rounded border border-line bg-raised px-3 py-3">
-          <div className="text-[10px] uppercase tracking-wider text-ink-faint">
+        <div className="animate-fade-in rounded border border-line bg-raised px-3 py-2">
+          <div className="text-3xs uppercase tracking-wide text-ink-faint">
             {ETIQUETA_MOTIVO[evaluation.no_trade_reason] ?? evaluation.no_trade_reason}
           </div>
           <div className="mt-1 text-sm leading-relaxed text-ink">
@@ -55,25 +57,27 @@ export default function PermissionPanel({ status, evaluation, error, thresholds 
 
   return (
     <section className="rounded-lg border border-line bg-surface overflow-hidden">
-      <h2 className="flex items-center justify-between border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
+      <h2 className="flex items-center justify-between border-b border-line px-3 py-1.5 text-2xs uppercase tracking-wide text-ink-dim">
         Permission Panel
         {cargando && evaluation && <Spinner />}
       </h2>
 
+      {/* Los tres estados sin dato real: una línea, sin margen de sobra. Ver
+          ESCALA DE DENSIDAD en index.css. */}
       {status === "error" && (
-        <div className="animate-fade-in px-4 py-4 text-ink-dim">
+        <p className="animate-fade-in px-3 py-2 text-xs text-ink-dim">
           {error?.message ?? "No se puede clasificar."}
-        </div>
+        </p>
       )}
 
       {status === "incompleto" && (
-        <div className="px-4 py-6 text-ink-dim">
+        <p className="px-3 py-2 text-xs text-ink-dim">
           La clasificación aparece en cuanto respondas los seis indicadores.
-        </div>
+        </p>
       )}
 
       {cargando && !evaluation && (
-        <div className="animate-pulse px-4 py-6 text-ink-dim">Clasificando…</div>
+        <p className="animate-pulse px-3 py-2 text-xs text-ink-dim">Clasificando…</p>
       )}
 
       {(status === "ok" || cargando) && evaluation && (

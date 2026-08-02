@@ -20,6 +20,17 @@ import { A4, anchoTexto, crearDocumento, partirEnLineas } from "./pdf.js";
  *
  * Separado de la interfaz a propósito: aquí no hay ni un `document`, así que
  * se puede probar entero desde Node.
+ *
+ * **Se agrupa por mes, como un estado de cuenta.** Una lista continua de
+ * cien setups no dice nada por sí sola; separada en meses, con un resumen
+ * antes de cada bloque (cuántos LONG/SHORT/NO TRADE, cuántos con resultado y
+ * el PnL del periodo), se lee como el registro de disciplina que el
+ * histórico quiere ser. El mes es el de `evaluated_at` -- el día que se
+ * decidió, no el día en que se cerró el resultado, que puede caer en otro
+ * mes distinto y contarse aparte en el resumen del mes en que se registró
+ * la evaluación. El recuento de resultados sale de `outcome`, el mismo
+ * campo que ya calcula `v_setups_with_outcome` en el backend: aquí no se
+ * reescribe qué cuenta como ganada o perdida, solo se tabula.
  */
 
 const MARGEN = 42;
@@ -28,7 +39,16 @@ const ANCHO_UTIL = A4.ancho - MARGEN * 2;
 const CUERPO = 9;
 const INTERLINEA = 12;
 const ALTO_MINIMO_DE_BLOQUE = 96; // no dejar una cabecera huérfana al pie
+// Banda del mes (22) + separación (8) + hasta dos líneas de resumen (24) +
+// regla y hueco final (10): el mínimo para que un encabezado de mes nunca
+// aparezca solo al pie de una página con sus setups ya en la siguiente.
+const ALTO_MINIMO_DE_ENCABEZADO_MES = 64;
 const PIE = A4.alto - MARGEN;
+
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
 
 /** Columna donde acaban los puntos, alineados a la derecha. */
 const X_DERECHA = MARGEN + ANCHO_UTIL;
@@ -39,10 +59,14 @@ export function construirReporteSetups(setups, { generadoEl = new Date() } = {})
 
   cabecera(pluma, setups, generadoEl);
 
-  setups.forEach((setup, indice) => {
-    pluma.reservar(ALTO_MINIMO_DE_BLOQUE);
-    if (indice > 0) pluma.separador();
-    bloqueDeSetup(pluma, setup);
+  const meses = agruparPorMes(setups);
+  meses.forEach((mes, indiceMes) => {
+    encabezadoDeMes(pluma, mes, indiceMes === 0);
+    mes.setups.forEach((setup, indice) => {
+      pluma.reservar(ALTO_MINIMO_DE_BLOQUE);
+      if (indice > 0) pluma.separador();
+      bloqueDeSetup(pluma, setup);
+    });
   });
 
   if (setups.length === 0) {
@@ -163,6 +187,125 @@ function cabecera(pluma, setups, generadoEl) {
   pluma.espacio(8);
   pluma.doc.linea(MARGEN, pluma.y, X_DERECHA, { gris: 0.5, grosor: 0.8 });
   pluma.espacio(2);
+}
+
+/**
+ * Agrupa por mes de `evaluated_at`, del más reciente al más antiguo.
+ *
+ * El orden de los setups **dentro** de cada mes se conserva tal cual llega
+ * -- normalmente el mismo del histórico en pantalla -- así que si el trader
+ * había ordenado por balance o por símbolo antes de exportar, ese orden
+ * sobrevive dentro de cada bloque de mes; lo único que se reordena es a qué
+ * mes pertenece cada uno.
+ *
+ * La clave es `AAAA-MM`, que ordena bien como texto sin tener que volver a
+ * parsear fechas para comparar. Un `evaluated_at` ausente o inválido -- no
+ * debería pasar, pero `new Date(null)` da la época Unix y no un error, así
+ * que no se confía en que "no truena" signifique "está bien" -- cae en un
+ * cajón "sin fecha" que se queda siempre al final, en vez de colarse en
+ * enero de 1970 sin que nadie lo note.
+ */
+function agruparPorMes(setups) {
+  const mapa = new Map();
+  for (const setup of setups) {
+    const clave = claveDeMes(setup.evaluated_at);
+    if (!mapa.has(clave)) mapa.set(clave, []);
+    mapa.get(clave).push(setup);
+  }
+  return [...mapa.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([clave, setups]) => ({ clave, nombre: nombreDeMes(clave), setups, resumen: resumenDelMes(setups) }));
+}
+
+function claveDeMes(iso) {
+  if (!iso) return "0000-00";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "0000-00";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function nombreDeMes(clave) {
+  if (clave === "0000-00") return "SIN FECHA";
+  const [anio, mes] = clave.split("-");
+  return `${MESES[Number(mes) - 1].toUpperCase()} ${anio}`;
+}
+
+/**
+ * Cuántos LONG/SHORT/NO TRADE, y de los que ya tienen resultado, cuántos
+ * ganados/perdidos/breakeven y la suma del PnL.
+ *
+ * `outcome` es el mismo campo que ya calcula `v_setups_with_outcome` en el
+ * backend -- WIN si el PnL es positivo, LOSS si es negativo, BREAKEVEN si es
+ * cero, o lo que el trader declaró a mano cuando no hay PnL del exchange.
+ * Aquí solo se cuenta lo que ya viene resuelto, nunca se decide de nuevo qué
+ * cuenta como ganada.
+ */
+function resumenDelMes(setups) {
+  const porDecision = { LONG: 0, SHORT: 0, NO_TRADE: 0 };
+  for (const s of setups) {
+    if (s.decision in porDecision) porDecision[s.decision] += 1;
+  }
+
+  const conResultado = setups.filter((s) => s.outcome);
+  const porOutcome = { WIN: 0, LOSS: 0, BREAKEVEN: 0 };
+  let sumaPnl = null;
+  for (const s of conResultado) {
+    if (s.outcome in porOutcome) porOutcome[s.outcome] += 1;
+    if (s.pnl_net != null) sumaPnl = (sumaPnl ?? 0) + Number(s.pnl_net);
+  }
+
+  return { total: setups.length, porDecision, conResultado: conResultado.length, porOutcome, sumaPnl };
+}
+
+/**
+ * El corte entre meses: una banda gris con el nombre en grande, y debajo el
+ * resumen antes de los setups uno a uno -- igual que un estado de cuenta
+ * separa periodos con su saldo antes del detalle de movimientos.
+ *
+ * Reserva el hueco de la cabecera **más** el de al menos un bloque de setup
+ * de un tirón: sin eso, un mes podría empezar en las últimas líneas de una
+ * página y dejar su banda sola, con todos sus setups ya en la siguiente --
+ * el mismo problema, un nivel más arriba, que ya resuelve
+ * `ALTO_MINIMO_DE_BLOQUE` para cada setup.
+ */
+function encabezadoDeMes(pluma, mes, esPrimero) {
+  // El hueco con el mes anterior se añade ANTES de reservar: si empujar 14px
+  // hace que el encabezado ya no quepa, `reservar` salta de página y ese
+  // hueco se pierde con el salto -- que es lo correcto, una página nueva no
+  // necesita aire extra arriba del todo.
+  if (!esPrimero) pluma.espacio(14);
+  pluma.reservar(ALTO_MINIMO_DE_ENCABEZADO_MES + ALTO_MINIMO_DE_BLOQUE);
+
+  const altoBanda = 21;
+  const yBanda = pluma.y;
+  pluma.doc.rectangulo(MARGEN, yBanda, ANCHO_UTIL, altoBanda, { gris: 0.91 });
+  pluma.doc.texto(MARGEN + 8, yBanda + 15, mes.nombre, { tamano: 12, negrita: true, gris: 0.15 });
+  pluma.y = yBanda + altoBanda + 8;
+
+  const r = mes.resumen;
+  pluma.linea(
+    `${r.total} ${r.total === 1 ? "setup evaluado" : "setups evaluados"}   ·   ` +
+      `${r.porDecision.LONG} LONG   ·   ${r.porDecision.SHORT} SHORT   ·   ` +
+      `${r.porDecision.NO_TRADE} NO TRADE`,
+    { tamano: 8.5, gris: 0.35 },
+  );
+
+  if (r.conResultado > 0) {
+    const pl = (n, singular, plural) => `${n} ${n === 1 ? singular : plural}`;
+    pluma.linea(
+      `${r.conResultado} con resultado   ·   ${pl(r.porOutcome.WIN, "ganada", "ganadas")}, ` +
+        `${pl(r.porOutcome.LOSS, "perdida", "perdidas")}, ${r.porOutcome.BREAKEVEN} breakeven` +
+        (r.sumaPnl != null
+          ? `   ·   PnL del mes: ${r.sumaPnl > 0 ? "+" : ""}${formatNumber(r.sumaPnl)} USDT`
+          : ""),
+      { tamano: 8.5, gris: 0.35 },
+    );
+  }
+
+  pluma.espacio(2);
+  pluma.reservar(8);
+  pluma.doc.linea(MARGEN, pluma.y, X_DERECHA, { gris: 0.82 });
+  pluma.espacio(6);
 }
 
 function bloqueDeSetup(pluma, setup) {

@@ -81,25 +81,27 @@ export default function ConfluenceScore({ status, evaluation, error }) {
 
   return (
     <section className="rounded-lg border border-line bg-surface overflow-hidden">
-      <h2 className="flex items-center justify-between border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
+      <h2 className="flex items-center justify-between border-b border-line px-3 py-1.5 text-2xs uppercase tracking-wide text-ink-dim">
         Confluence Score
         {cargando && evaluation && <Spinner />}
       </h2>
 
+      {/* Los tres estados sin dato real: una línea, sin margen de sobra. Ver
+          ESCALA DE DENSIDAD en index.css. */}
       {status === "error" && (
-        <div className="animate-fade-in px-4 py-4 text-ink-dim">
+        <p className="animate-fade-in px-3 py-2 text-xs text-ink-dim">
           {error?.message ?? "No se puede calcular el desglose."}
-        </div>
+        </p>
       )}
 
       {status === "incompleto" && (
-        <div className="px-4 py-6 text-ink-dim">
+        <p className="px-3 py-2 text-xs text-ink-dim">
           El desglose aparece en cuanto respondas los seis indicadores.
-        </div>
+        </p>
       )}
 
       {cargando && !evaluation && (
-        <div className="animate-pulse px-4 py-6 text-ink-dim">Calculando…</div>
+        <p className="animate-pulse px-3 py-2 text-xs text-ink-dim">Calculando…</p>
       )}
 
       {(status === "ok" || cargando) && evaluation && (
@@ -109,7 +111,7 @@ export default function ConfluenceScore({ status, evaluation, error }) {
               <li
                 key={c.indicator_code}
                 title={c.option_label}
-                className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 text-sm ${
+                className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1.5 text-sm ${
                   cambiadas.has(c.indicator_code) ? "animate-flash" : ""
                 }`}
               >
@@ -125,8 +127,8 @@ export default function ConfluenceScore({ status, evaluation, error }) {
             ))}
           </ul>
 
-          <div className="flex items-baseline justify-between border-t border-line bg-raised px-4 py-3">
-            <span className="text-xs uppercase tracking-widest text-ink-dim">Total</span>
+          <div className="flex items-baseline justify-between border-t border-line bg-raised px-3 py-3">
+            <span className="text-2xs uppercase tracking-wide text-ink-dim">Total</span>
             <AnimatedNumber
               valor={evaluation.raw_balance}
               formatear={(n) => conSigno(Math.round(n))}
