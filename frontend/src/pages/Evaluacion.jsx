@@ -89,38 +89,54 @@ export default function Evaluacion({ evaluacion, irA }) {
           // ensancharse. El formulario sí: cada 250 px de más son otro botón
           // de opción por fila.
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(0,1fr)_28rem] 2xl:gap-8">
-            <div className="flex flex-col gap-6">
-              {formulario}
+            {formulario}
+
+            {/* **El veredicto se queda quieto, y «Guardar» vive con él.**
+                Sin esto la rejilla de indicadores (izquierda) es más alta que
+                el veredicto (derecha), y «Guardar» se guardaba abajo del todo
+                a ancho completo -- la columna derecha se quedaba con cientos
+                de píxeles vacíos debajo de Permission Panel mientras la
+                izquierda seguía creciendo. Aquí «Guardar» pasa a apilarse
+                DEBAJO de Permission Panel, en la misma columna.
+
+                Un solo `<SaveSetupPanel>`, no dos -- duplicarlo (uno visible
+                en móvil, otro en escritorio) le daría dos `useState`
+                independientes y lo escrito en uno no aparecería en el otro
+                si la ventana cambia de tamaño a mitad de rellenar el
+                formulario. En su lugar, el envoltorio de los tres paneles de
+                veredicto es quien se oculta en móvil (`hidden lg:contents`):
+                en escritorio `display: contents` lo vuelve transparente al
+                `flex-col` de fuera y sus hijos se apilan como si fueran
+                hijos directos; en móvil `hidden` los quita a los tres, y lo
+                único que queda en esta columna es `SaveSetupPanel` -- que
+                por eso ya no puede estar oculta en móvil como antes: sin
+                ella no habría dónde guardar el setup.
+
+                `top-16` lo deja por debajo de la barra de pestañas, que
+                también es pegajosa; `max-h` + `overflow-y-auto` son para que
+                la columna entera -- veredicto y guardado -- se pueda recorrer
+                en pantallas bajas en vez de cortarse. */}
+            <div className="flex flex-col gap-6 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:gap-4 lg:overflow-y-auto lg:pb-2">
+              <div className="hidden lg:contents">
+                <DecisionPanel
+                  status={status}
+                  evaluation={evaluation}
+                  error={error}
+                  maxAbsBalance={catalogo?.max_abs_balance}
+                />
+                <ConfluenceScore status={status} evaluation={evaluation} error={error} />
+                <PermissionPanel
+                  status={status}
+                  evaluation={evaluation}
+                  error={error}
+                  thresholds={catalogo?.thresholds}
+                />
+              </div>
               <SaveSetupPanel
                 selections={selections}
                 completo={completo}
                 decision={decision}
                 onVerHistorico={irA ? () => irA("historico") : undefined}
-              />
-            </div>
-
-            {/* **El veredicto se queda quieto.** El formulario es más largo que
-                la pantalla y el panel más corto, así que al desplazarse para
-                llegar a la sexta pregunta el resultado se iba de la vista justo
-                cuando más falta hacía verlo. Pegado arriba, marcar una opción y
-                ver moverse el balance ocurren en el mismo golpe de vista.
-
-                `top-16` lo deja por debajo de la barra de pestañas, que también
-                es pegajosa; `max-h` + `overflow-y-auto` son para que el propio
-                panel se pueda recorrer en pantallas bajas en vez de cortarse. */}
-            <div className="hidden lg:sticky lg:top-16 lg:flex lg:max-h-[calc(100vh-5rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pb-2">
-              <DecisionPanel
-                status={status}
-                evaluation={evaluation}
-                error={error}
-                maxAbsBalance={catalogo?.max_abs_balance}
-              />
-              <ConfluenceScore status={status} evaluation={evaluation} error={error} />
-              <PermissionPanel
-                status={status}
-                evaluation={evaluation}
-                error={error}
-                thresholds={catalogo?.thresholds}
               />
             </div>
           </div>

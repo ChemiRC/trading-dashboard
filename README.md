@@ -316,13 +316,50 @@ opción elegida y puntos de los seis, y con el formulario al lado sería decir d
 lo mismo en la misma pantalla.
 
 **El veredicto no se va de la pantalla.** En escritorio la columna de la derecha
-—Decisión, Confluence Score, Permission Panel— es *sticky*: se queda pegada bajo la
-barra de pestañas mientras el formulario se desplaza. Antes el formulario medía más de
-mil píxeles y el panel unos pocos cientos, así que al bajar a contestar la última
-pregunta el resultado desaparecía justo cuando más falta hacía verlo — se midió:
-desplazando 700 px, el panel quedaba fuera de la vista. Con el formulario compacto
-(1034 → 742 px de alto) **las seis preguntas caben a la vez** en un monitor de 900 px,
-y lo que sobresale es el panel de guardado, que no se mira mientras se contesta.
+—Decisión, Confluence Score, Permission Panel **y, debajo, «Guardar en el
+histórico»**— es *sticky*: se queda pegada bajo la barra de pestañas mientras el
+formulario se desplaza. Antes el formulario medía más de mil píxeles y el panel unos
+pocos cientos, así que al bajar a contestar la última pregunta el resultado
+desaparecía justo cuando más falta hacía verlo — se midió: desplazando 700 px, el
+panel quedaba fuera de la vista.
+
+Dos cambios lo arreglaron, medidos cada uno antes de aplicar el siguiente:
+
+- **Los seis indicadores pasan a una rejilla de 2 columnas** (3 filas de 2, mismo
+  orden del catálogo) en vez de una lista apilada: el formulario baja de 1034 a
+  742 px de alto sin tocar el estilo de ningún botón, solo cómo se agrupan.
+- **«Guardar en el histórico» se muda a la columna derecha**, apilado bajo Permission
+  Panel, en vez de quedarse a ancho completo debajo de la rejilla. La columna
+  izquierda pasa a ser *solo* la rejilla; la derecha, todo el veredicto y el
+  guardado juntos, compartiendo el mismo `sticky` y el mismo scroll interno si hace
+  falta.
+
+Ese traslado deja a «Guardar» viviendo en una columna de 330 a 448 px según el
+viewport —mucho más angosta que el ancho completo de antes—, y sus tres campos
+cortos (Símbolo, Timeframe, Precio) no caben en fila ahí. La solución **no es un
+breakpoint de página** (`lg:`, `2xl:`): el ancho de esa columna cambia de forma
+continua con el viewport, no en el mismo salto en el que Tailwind cambia de
+breakpoint, así que un `2xl:grid-cols-3` habría ido bien a 1536 px pero forzado los
+tres campos en fila también a 1280, donde no caben. Se usa **consulta de
+contenedor** (`@container`, nativo en Tailwind v4) con dos umbrales medidos
+—no adivinados—: se fuerza el grid a N columnas y se busca el ancho exacto donde la
+etiqueta *"PRECIO al evaluar"* se parte en dos líneas, que es lo que de verdad
+desalinea la fila:
+
+| Columnas | Se parte por debajo de… | Umbral usado |
+| --- | --- | --- |
+| 2 (Símbolo + Timeframe; Precio solo debajo) | 266 px de grid | `@min-[300px]:grid-cols-2` |
+| 3 (los tres en fila) | 391 px de grid | `@min-[425px]:grid-cols-3` |
+
+Por debajo de 300 px de contenedor, los cuatro campos van apilados, uno por línea
+—como ya hacían en móvil—; Notas se queda siempre a ancho completo, sea cual sea el
+número de columnas de los otros tres, porque angostar un campo de texto largo no
+tiene sentido.
+
+Con la rejilla de indicadores y el traslado de «Guardar», medido en el ancho de
+laptop que más importa (1440 px): **1300 → 933 px** de alto total. Cabe entero en un
+viewport de 1000 px; en 900 px falta el pie del aviso de NO TRADE, que se dejó
+intacto a propósito —el contenido pesa más que ese último ajuste de 33 px.
 
 Cada indicador lleva su icono y su nombre en negrita, y las opciones marcadas se
 distinguen por tres señales a la vez —borde claro, fondo elevado y una línea interior—

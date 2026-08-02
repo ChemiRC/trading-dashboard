@@ -106,12 +106,29 @@ export default function SaveSetupPanel({ selections, completo, decision, onVerHi
   }
 
   return (
-    <section className="rounded-lg border border-line bg-surface overflow-hidden">
+    <section className="@container rounded-lg border border-line bg-surface overflow-hidden">
       <h2 className="border-b border-line px-4 py-2.5 text-xs uppercase tracking-widest text-ink-dim">
         Guardar en el histórico
       </h2>
 
-      <div className="grid gap-4 px-4 py-4 sm:grid-cols-3">
+      {/* Consulta de contenedor y no de viewport, a propósito: esta sección
+          vive en la columna derecha, cuyo ancho real va de ~330px (lg) a
+          448px fijos (2xl) -- varía de forma continua con el viewport, no
+          en el mismo salto en el que Tailwind cambia de breakpoint.
+
+          Dos umbrales, los dos medidos igual: se fuerza el grid a N
+          columnas y se busca el ancho exacto donde una etiqueta se parte en
+          dos líneas (que es lo que desalinea esa fila, no solo "se ve
+          apretado").
+            - 3 columnas: la etiqueta "PRECIO al evaluar" se parte por
+              debajo de 391px de grid -> contenedor ≥423px (425px con
+              margen). Es 2xl (448px) y nada por debajo.
+            - 2 columnas: la misma etiqueta se parte por debajo de 266px de
+              grid -> contenedor ≥298px (300px con margen). Ahí ya entran
+              Símbolo y Timeframe en la primera fila y Precio solo en la
+              segunda -- Notas se queda siempre a ancho completo, abajo,
+              sea cual sea el número de columnas de los tres campos cortos. */}
+      <div className="grid gap-3 px-4 py-3 @min-[300px]:grid-cols-2 @min-[425px]:grid-cols-3">
         <Campo etiqueta="Símbolo">
           <input
             type="text"
@@ -151,12 +168,17 @@ export default function SaveSetupPanel({ selections, completo, decision, onVerHi
           />
         </Campo>
 
-        <div className="sm:col-span-3">
+        <div className="@min-[300px]:col-span-2 @min-[425px]:col-span-3">
           <Campo etiqueta="Notas" pista="(opcional)">
+            {/* Una fila en reposo, no dos: el texto largo no se pierde --
+                sigue siendo editable, con scroll interno del propio
+                textarea y `resize-y` para quien prefiera estirarlo -- solo
+                deja de reservar una segunda línea vacía cuando está en
+                blanco, que es como se ve la mayor parte del tiempo. */}
             <textarea
               value={campos.notes}
               onChange={(e) => set("notes", e.target.value)}
-              rows={2}
+              rows={1}
               maxLength={2000}
               placeholder="Qué viste, qué te hizo dudar…"
               className={`${CLASE_INPUT} resize-y`}
