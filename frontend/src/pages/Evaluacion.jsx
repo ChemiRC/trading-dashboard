@@ -89,71 +89,67 @@ export default function Evaluacion({ evaluacion, irA }) {
           // ensancharse. El formulario sí: cada 250 px de más son otro botón
           // de opción por fila.
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(0,1fr)_28rem] 2xl:gap-8">
-            {formulario}
+            {/* **«Guardar» vuelve a la izquierda, debajo de la rejilla.**
+                Vivió apilado bajo Permission Panel un tiempo -- la columna
+                derecha se quedaba con cientos de píxeles vacíos y ahí sí
+                tenía sitio -- pero el precio era que "Guardar" heredaba el
+                ancho angosto de esa columna (330-448px) y sus tres campos
+                cortos no cabían en fila: forzados a apilarse uno por línea,
+                la sección crecía tanto que la columna del veredicto entera
+                dejaba de caber en un monitor sin desplazarse. Aquí vive a
+                todo el ancho de la rejilla (700-1600px según el viewport),
+                así que sus campos van EN FILA -- la misma consulta de
+                contenedor de siempre (`@min-[425px]:grid-cols-3` en
+                SaveSetupPanel.jsx), solo que ahora el contenedor real es
+                mucho más ancho que el umbral y los tres entran sin apretarse.
 
-            {/* **El veredicto se queda quieto, y «Guardar» vive con él.**
-                Sin esto la rejilla de indicadores (izquierda) es más alta que
-                el veredicto (derecha), y «Guardar» se guardaba abajo del todo
-                a ancho completo -- la columna derecha se quedaba con cientos
-                de píxeles vacíos debajo de Permission Panel mientras la
-                izquierda seguía creciendo. Aquí «Guardar» pasa a apilarse
-                DEBAJO de Permission Panel, en la misma columna.
-
-                Un solo `<SaveSetupPanel>`, no dos -- duplicarlo (uno visible
-                en móvil, otro en escritorio) le daría dos `useState`
-                independientes y lo escrito en uno no aparecería en el otro
-                si la ventana cambia de tamaño a mitad de rellenar el
-                formulario. En su lugar, el envoltorio de los tres paneles de
-                veredicto es quien se oculta en móvil (`hidden lg:contents`):
-                en escritorio `display: contents` lo vuelve transparente al
-                `flex-col` de fuera y sus hijos se apilan como si fueran
-                hijos directos; en móvil `hidden` los quita a los tres, y lo
-                único que queda en esta columna es `SaveSetupPanel` -- que
-                por eso ya no puede estar oculta en móvil como antes: sin
-                ella no habría dónde guardar el setup.
-
-                `top-16` lo deja por debajo de la barra de pestañas, que
-                también es pegajosa; `max-h` + `overflow-y-auto` son para que
-                la columna entera -- veredicto y guardado -- se pueda recorrer
-                en pantallas bajas en vez de cortarse.
-
-                **Cada panel hijo necesita `shrink-0`, si no el recorte pasa de
-                verdad.** Los cuatro (`DecisionPanel`, `ConfluenceScore`,
-                `PermissionPanel`, `SaveSetupPanel`) llevan `overflow-hidden`
-                en su propio `<section>` -- solo para recortar las esquinas
-                redondeadas del borde, nada relacionado con esto. Pero la spec
-                de flexbox dice que el tamaño mínimo automático de un hijo
-                flex solo respeta el tamaño de su contenido si su overflow es
-                `visible`; con `overflow-hidden` ese mínimo pasa a ser 0. Con
-                el contenedor limitado en altura (`max-h` de aquí arriba), el
-                navegador prefería **encoger cada panel por debajo de su
-                contenido real** -- cortándolo en silencio, sin scrollbar que
-                avisara -- antes que agrandar el contenedor y dejarlo
-                desplazarse. Se vio en 1920×1080: Permission Panel perdía sus
-                últimos 10px, Confluence Score 51px enteros. `shrink-0` en
-                cada panel se lo prohíbe, y con eso el contenedor sí crece
-                más allá de `max-h` y scrollea de verdad. */}
-            <div className="flex flex-col gap-6 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:gap-4 lg:overflow-y-auto lg:pb-2">
-              <div className="hidden lg:contents">
-                <DecisionPanel
-                  status={status}
-                  evaluation={evaluation}
-                  error={error}
-                  maxAbsBalance={catalogo?.max_abs_balance}
-                />
-                <ConfluenceScore status={status} evaluation={evaluation} error={error} />
-                <PermissionPanel
-                  status={status}
-                  evaluation={evaluation}
-                  error={error}
-                  thresholds={catalogo?.thresholds}
-                />
-              </div>
+                Con esto la columna derecha se queda SOLO con el veredicto
+                (Decisión/Confluence/Permission), mucho más corta -- y la
+                izquierda es rejilla + guardado, en flujo normal de página,
+                no dentro de la columna sticky con scroll interno. */}
+            <div className="flex flex-col gap-6">
+              {formulario}
               <SaveSetupPanel
                 selections={selections}
                 completo={completo}
                 decision={decision}
                 onVerHistorico={irA ? () => irA("historico") : undefined}
+              />
+            </div>
+
+            {/* **El veredicto se queda quieto.** El formulario (+ Guardar,
+                ahora aquí al lado) es más largo que la pantalla y el panel
+                más corto, así que al desplazarse el resultado se iba de la
+                vista justo cuando más falta hacía verlo.
+
+                `top-16` lo deja por debajo de la barra de pestañas, que
+                también es pegajosa; `max-h` + `overflow-y-auto` son para que
+                la columna se pueda recorrer en pantallas bajas en vez de
+                cortarse -- y **cada panel hijo necesita `shrink-0`** para que
+                ese recorte no pase de verdad: llevan `overflow-hidden` en su
+                `<section>` (solo para las esquinas redondeadas), y la spec de
+                flexbox dice que el tamaño mínimo automático de un hijo flex
+                solo respeta su contenido si el overflow es `visible` --
+                con `overflow-hidden` ese mínimo pasa a ser 0, y el navegador
+                prefiere encoger el panel por debajo de su contenido real
+                -- cortándolo en silencio -- antes que agrandar el
+                contenedor y dejarlo desplazarse. Se vio en 1920×1080 antes
+                de este `shrink-0`: Permission Panel perdía sus últimos 10px,
+                Confluence Score 51px enteros, sin ninguna barra de scroll
+                que avisara. */}
+            <div className="hidden lg:sticky lg:top-16 lg:flex lg:max-h-[calc(100vh-5rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pb-2">
+              <DecisionPanel
+                status={status}
+                evaluation={evaluation}
+                error={error}
+                maxAbsBalance={catalogo?.max_abs_balance}
+              />
+              <ConfluenceScore status={status} evaluation={evaluation} error={error} />
+              <PermissionPanel
+                status={status}
+                evaluation={evaluation}
+                error={error}
+                thresholds={catalogo?.thresholds}
               />
             </div>
           </div>

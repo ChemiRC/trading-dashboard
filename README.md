@@ -316,50 +316,42 @@ opción elegida y puntos de los seis, y con el formulario al lado sería decir d
 lo mismo en la misma pantalla.
 
 **El veredicto no se va de la pantalla.** En escritorio la columna de la derecha
-—Decisión, Confluence Score, Permission Panel **y, debajo, «Guardar en el
-histórico»**— es *sticky*: se queda pegada bajo la barra de pestañas mientras el
-formulario se desplaza. Antes el formulario medía más de mil píxeles y el panel unos
-pocos cientos, así que al bajar a contestar la última pregunta el resultado
-desaparecía justo cuando más falta hacía verlo — se midió: desplazando 700 px, el
-panel quedaba fuera de la vista.
+—Decisión, Confluence Score, Permission Panel— es *sticky*: se queda pegada bajo la
+barra de pestañas mientras el formulario se desplaza. Antes el formulario medía más de
+mil píxeles y el panel unos pocos cientos, así que al bajar a contestar la última
+pregunta el resultado desaparecía justo cuando más falta hacía verlo — se midió:
+desplazando 700 px, el panel quedaba fuera de la vista.
 
-Dos cambios lo arreglaron, medidos cada uno antes de aplicar el siguiente:
+**Los seis indicadores pasan a una rejilla de 2 columnas** (3 filas de 2, mismo orden
+del catálogo) en vez de una lista apilada: el formulario baja de 1034 a 742 px de alto
+sin tocar el estilo de ningún botón, solo cómo se agrupan.
 
-- **Los seis indicadores pasan a una rejilla de 2 columnas** (3 filas de 2, mismo
-  orden del catálogo) en vez de una lista apilada: el formulario baja de 1034 a
-  742 px de alto sin tocar el estilo de ningún botón, solo cómo se agrupan.
-- **«Guardar en el histórico» se muda a la columna derecha**, apilado bajo Permission
-  Panel, en vez de quedarse a ancho completo debajo de la rejilla. La columna
-  izquierda pasa a ser *solo* la rejilla; la derecha, todo el veredicto y el
-  guardado juntos, compartiendo el mismo `sticky` y el mismo scroll interno si hace
-  falta.
+«Guardar en el histórico» probó dos sitios antes de quedarse en el que tiene ahora, y
+los dos se midieron —no se eligieron a ojo—:
 
-Ese traslado deja a «Guardar» viviendo en una columna de 330 a 448 px según el
-viewport —mucho más angosta que el ancho completo de antes—, y sus tres campos
-cortos (Símbolo, Timeframe, Precio) no caben en fila ahí. La solución **no es un
-breakpoint de página** (`lg:`, `2xl:`): el ancho de esa columna cambia de forma
-continua con el viewport, no en el mismo salto en el que Tailwind cambia de
-breakpoint, así que un `2xl:grid-cols-3` habría ido bien a 1536 px pero forzado los
-tres campos en fila también a 1280, donde no caben. Se usa **consulta de
-contenedor** (`@container`, nativo en Tailwind v4) con dos umbrales medidos
-—no adivinados—: se fuerza el grid a N columnas y se busca el ancho exacto donde la
-etiqueta *"PRECIO al evaluar"* se parte en dos líneas, que es lo que de verdad
-desalinea la fila:
+1. **Apilado en la columna derecha**, bajo Permission Panel. Resolvía que esa columna
+   se quedara con cientos de píxeles vacíos, pero le heredaba su ancho angosto (330 a
+   448 px según el viewport) a un formulario de tres campos cortos que no cabían en
+   fila ahí: apilados uno por línea, «Guardar» crecía tanto que la columna del
+   veredicto entera dejaba de caber sin desplazarse — a 1440 px, 1194 px de alto total.
+2. **De vuelta a la izquierda, debajo de la rejilla**, a todo su ancho (700 a 1600 px
+   según el viewport). Los mismos tres campos que no cabían en 330 px caben de sobra
+   ahí, en fila. La columna derecha se queda *solo* con el veredicto —mucho más corta—
+   y la izquierda es rejilla + guardado en flujo normal de página.
 
-| Columnas | Se parte por debajo de… | Umbral usado |
-| --- | --- | --- |
-| 2 (Símbolo + Timeframe; Precio solo debajo) | 266 px de grid | `@min-[300px]:grid-cols-2` |
-| 3 (los tres en fila) | 391 px de grid | `@min-[425px]:grid-cols-3` |
+El sitio 2 es el actual. La consulta de contenedor de `SaveSetupPanel.jsx`
+(`@container`, nativo en Tailwind v4) no cambió entre los dos: son los mismos
+umbrales, medidos buscando el ancho exacto donde la etiqueta *"PRECIO al evaluar"* se
+parte en dos líneas —391 px de grid para 3 columnas, 266 px para 2—, y ahora el
+contenedor real casi siempre supera esos umbrales sin esfuerzo, así que los campos
+van en fila salvo en las columnas más angostas de móvil y tablet.
 
-Por debajo de 300 px de contenedor, los cuatro campos van apilados, uno por línea
-—como ya hacían en móvil—; Notas se queda siempre a ancho completo, sea cual sea el
-número de columnas de los otros tres, porque angostar un campo de texto largo no
-tiene sentido.
-
-Con la rejilla de indicadores y el traslado de «Guardar», medido en el ancho de
-laptop que más importa (1440 px): **1300 → 933 px** de alto total. Cabe entero en un
-viewport de 1000 px; en 900 px falta el pie del aviso de NO TRADE, que se dejó
-intacto a propósito —el contenido pesa más que ese último ajuste de 33 px.
+Medido a 1920×1080 con los seis indicadores respondidos: el formulario (rejilla +
+guardado) termina en 1025 px, el veredicto en 902 px. Sigue sin caber del todo sin
+desplazarse en cualquier resolución —a 1440 px de ancho la página completa llega a
+1162 px— pero es un **scroll de página normal y visible**, no uno oculto dentro de una
+columna de altura fija: la regla que no se negocia es que nada se recorte en silencio,
+y eso sí está verificado en 1024, 1440, 1536 y 1920 px.
 
 Cada indicador lleva su icono y su nombre en negrita, y las opciones marcadas se
 distinguen por tres señales a la vez —borde claro, fondo elevado y una línea interior—
@@ -388,7 +380,7 @@ que se pintase sería una sucesión de 401.
 
 | Pestaña | Qué hace |
 | --- | --- |
-| **Evaluación** | Las 6 preguntas y, al lado, los tres paneles del veredicto y el guardado |
+| **Evaluación** | Las 6 preguntas y el guardado; al lado, los tres paneles del veredicto |
 | **Riesgo** | R:B, tamaño de posición, pérdida máxima, ratios ATR |
 | **Operaciones** | Lo ejecutado en el exchange: sincronización con Bybit y vínculo con su setup |
 | **Histórico** | Los setups guardados, su desglose congelado, el registro manual del resultado, el borrado y la descarga en PDF |
