@@ -804,6 +804,22 @@ ganadas… PnL del mes: +50.00 USDT» en julio, donde uno de los dos setups gana
 tenía PnL del exchange y por eso no entra en la suma. 8 tests nuevos cubren el
 agrupado, el orden de los meses, la aritmética del resumen y el cajón de «sin fecha».
 
+**Se elige el mes antes de descargar.** El botón «Descargar PDF» ya no exporta al
+primer clic: abre un selector con los meses presentes en lo cargado en pantalla —«Agosto
+2026», «Julio 2026»…, calculados de la misma clave `AAAA-MM` que agrupa el propio PDF
+(`mesesDisponibles` en `reporteSetups.js`, que reutiliza `claveDeMes`)— todos marcados
+por omisión, así que un segundo clic en «Descargar N setups» sigue exportando todo lo
+cargado, igual que antes. Desmarcar un mes actualiza el contador del botón en el acto y
+filtra la lista antes de pedir el detalle de cada setup, sin tocar el resto del flujo
+(la petición en paralelo de seis en seis y la construcción del PDF no cambian). 3 tests
+nuevos cubren `mesesDisponibles`: el orden más-reciente-primero con su cantidad, el
+cajón «Sin fecha», y que su clave coincide con la que usa `construirReporteSetups` para
+que filtrar por mes antes de exportar no pueda desincronizarse de cómo el PDF agrupa
+después. Verificado en el navegador vía CDP: el selector lista «Agosto 2026 · 3» y
+«Julio 2026 · 2» sobre datos reales, desmarcar uno baja el contador a «Descargar 2
+setups», «Ninguno» deshabilita la descarga, y confirmar genera un PDF válido
+(`application/pdf`, sin errores de consola).
+
 ### Tokens de color
 
 | Token | Para qué |

@@ -217,7 +217,7 @@ function agruparPorMes(setups) {
     .map(([clave, setups]) => ({ clave, nombre: nombreDeMes(clave), setups, resumen: resumenDelMes(setups) }));
 }
 
-function claveDeMes(iso) {
+export function claveDeMes(iso) {
   if (!iso) return "0000-00";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "0000-00";
@@ -228,6 +228,31 @@ function nombreDeMes(clave) {
   if (clave === "0000-00") return "SIN FECHA";
   const [anio, mes] = clave.split("-");
   return `${MESES[Number(mes) - 1].toUpperCase()} ${anio}`;
+}
+
+/**
+ * Los meses presentes en una lista de setups, del más reciente al más
+ * antiguo, con cuántos setups tiene cada uno -- para el selector de "qué mes
+ * descargar" de `ExportPdfButton.jsx`. Misma clave `AAAA-MM` que agrupa el
+ * PDF, así que filtrar por ella antes de generar el reporte no puede
+ * desincronizarse de cómo el propio PDF agrupa después.
+ */
+export function mesesDisponibles(setups) {
+  const conteo = new Map();
+  for (const setup of setups) {
+    const clave = claveDeMes(setup.evaluated_at);
+    conteo.set(clave, (conteo.get(clave) ?? 0) + 1);
+  }
+  return [...conteo.entries()]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([clave, cantidad]) => ({ clave, etiqueta: etiquetaDeMes(clave), cantidad }));
+}
+
+function etiquetaDeMes(clave) {
+  if (clave === "0000-00") return "Sin fecha";
+  const [anio, mes] = clave.split("-");
+  const nombre = MESES[Number(mes) - 1];
+  return `${nombre[0].toUpperCase()}${nombre.slice(1)} ${anio}`;
 }
 
 /**

@@ -20,7 +20,7 @@ import {
   partirEnLineas,
 } from "../src/lib/pdf.js";
 import { formatFecha } from "../src/lib/format.js";
-import { construirReporteSetups, nombreDeArchivo } from "../src/lib/reporteSetups.js";
+import { claveDeMes, construirReporteSetups, mesesDisponibles, nombreDeArchivo } from "../src/lib/reporteSetups.js";
 
 let pasados = 0;
 let fallidos = 0;
@@ -559,6 +559,33 @@ caso("meses: sin fecha válida cae en un cajón aparte y no en 1970", () => {
   const texto = comoTexto(construirReporteSetups([sinFecha]));
   assert.ok(texto.includes(aCadenaHex("SIN FECHA").slice(1, -1)));
   assert.ok(!texto.includes(aCadenaHex("1970").slice(1, -1)));
+});
+
+caso("mesesDisponibles: agosto y julio, el más reciente primero, con su cantidad", () => {
+  const meses = mesesDisponibles([AGOSTO_LONG, AGOSTO_SHORT, AGOSTO_NOTRADE, JULIO_1, JULIO_2]);
+  assert.deepEqual(
+    meses.map((m) => [m.clave, m.etiqueta, m.cantidad]),
+    [
+      ["2026-08", "Agosto 2026", 3],
+      ["2026-07", "Julio 2026", 2],
+    ],
+  );
+});
+
+caso("mesesDisponibles: sin fecha válida se agrupa aparte como 'Sin fecha'", () => {
+  const sinFecha = { ...SETUP, evaluated_at: null };
+  const meses = mesesDisponibles([sinFecha, JULIO_1]);
+  assert.deepEqual(
+    meses.map((m) => m.etiqueta),
+    ["Julio 2026", "Sin fecha"],
+  );
+});
+
+caso("mesesDisponibles: misma clave que agrupa el propio PDF, para poder filtrar antes", () => {
+  for (const setup of [AGOSTO_LONG, JULIO_1]) {
+    const [mes] = mesesDisponibles([setup]);
+    assert.equal(mes.clave, claveDeMes(setup.evaluated_at));
+  }
 });
 
 caso("nombre de archivo: ordenable por fecha", () => {
