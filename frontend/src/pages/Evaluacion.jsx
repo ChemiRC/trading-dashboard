@@ -54,35 +54,19 @@ export default function Evaluacion({ evaluacion, irA }) {
       indicadores={indicadores}
       selections={selections}
       onElegir={elegir}
+      pendientes={pendientes}
     />
   );
 
   return (
     <div className={PANTALLA}>
+      {/* Sin cabecera de página -- "Trading Dashboard" + subtítulo no decían
+          nada que la propia pantalla no diga ya, y a 1920×1080 costaban 52px
+          que hacían falta para que todo cupiera sin desplazarse. El progreso
+          ("N sin responder") se mudó a la cabecera de "Qué ves en el
+          gráfico" (ver EvaluationForm.jsx), que es donde de verdad se mira
+          mientras se contesta. */}
       <div className={CONTENEDOR_DENSO}>
-        {/* `gap-4` propio en vez del `gap-6` de CONTENEDOR_DENSO -- que sigue
-            aplicándose igual en Operaciones e Histórico, no se toca la
-            constante compartida por 8px que solo hacían falta aquí. Con un
-            único hijo directo dentro de CONTENEDOR_DENSO, su gap-6 deja de
-            tener efecto (no hay hermano con quien dejar hueco) y manda este
-            gap-4 de dentro: cabecera y rejilla quedan 8px más juntas. */}
-        <div className="flex flex-col gap-4">
-        <header className="flex flex-wrap items-baseline justify-between gap-3 pr-14 sm:pr-0">
-          <div>
-            <h1 className="text-xl text-ink">Trading Dashboard</h1>
-            <p className="mt-1 text-sm text-ink-dim">
-              Evaluación de setup — describe lo que ves y mira lo que sale
-            </p>
-          </div>
-          {estadoCatalogo === "ok" && (
-            <span
-              className={`text-xs ${pendientes > 0 ? "text-cls-medium" : "text-ink-faint"}`}
-            >
-              {pendientes === 0 ? "Las seis respondidas" : `${pendientes} sin responder`}
-            </span>
-          )}
-        </header>
-
         {/* Sin catálogo no hay ni preguntas ni veredicto: el formulario ocupa
             el ancho entero y pinta él mismo su carga o su error, en vez de
             dejar media pantalla con paneles vacíos al lado. */}
@@ -161,7 +145,6 @@ export default function Evaluacion({ evaluacion, irA }) {
             </div>
           </div>
         )}
-        </div>
       </div>
 
       {/* Por debajo de `lg` no hay columna donde fijar nada: el veredicto pasa

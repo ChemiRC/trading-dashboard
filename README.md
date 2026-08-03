@@ -365,11 +365,40 @@ un poco—. Tres recortes, ninguno de tamaño de fuente ni de contenido, solo de
 espacio. Sigue siendo scroll de página normal y visible si el navegador real tiene
 mucho chrome propio; lo que ya no pasa es que se pierda información en silencio.
 
+**El siguiente recorte fue quitar la cabecera de la página entera** —"Trading
+Dashboard" y el subtítulo, 52 px que no decían nada que la propia pantalla no dijera
+ya—. El progreso («N sin responder») se mudó a la cabecera de «Qué ves en el gráfico»,
+que es el único sitio que de verdad se mira mientras se contesta; el botón flotante
+«Salir» de móvil, que antes tenía sitio reservado en la cabecera de la página
+(`pr-14`), ahora lo tiene en esa misma fila.
+
 Cada indicador lleva su icono y su nombre en negrita, y las opciones marcadas se
 distinguen por tres señales a la vez —borde claro, fondo elevado y una línea interior—
 en vez del relleno sutil de antes, que se perdía al mirar de reojo. El borde es
 **siempre** de dos píxeles: engordarlo solo al seleccionar movería de sitio al resto de
 las opciones en cada clic.
+
+**El formulario empieza en blanco, sin ninguna opción marcada.** Antes las seis
+preguntas llegaban precontestadas con los valores por defecto del catálogo —el trader
+veía un veredicto sin haber mirado el gráfico todavía, y el «defecto» de una opción no
+tiene por qué coincidir con lo que el trader ve ese día—. Ahora `selections` arranca en
+`{}` y cada respuesta es un gesto deliberado.
+
+Sin las respuestas precargadas, hacía falta otra forma de distinguir «contestado» de
+«sin contestar» de un vistazo, y **cada bloque de indicador lleva un acento de color
+por el signo de lo elegido**: verde si suma al balance, rojo si resta, gris si es
+neutro (0), y sin marco si todavía no se contestó. Los colores son los mismos tokens
+que ya usa el resto de la pantalla (`long`/`short`/`flat` —la barra de balance, el
+Confluence Score—), no un verde y un rojo inventados aparte. El indicador puerta
+conserva su acento ámbar (`puerta · regla A`) mientras está sin responder; en cuanto
+se contesta, el acento pasa a ser por puntos, como los demás.
+
+*Un bug real de por medio*: el acento no se veía al principio porque el borde inferior
+que separa las filas de la rejilla usaba `border-{color}` —el atajo que fija el color
+de los **cuatro** lados a la vez, no solo el de abajo— y eso pisaba el verde/rojo/gris
+del canto izquierdo sin avisar: el ancho (`border-l-2`) se aplicaba, pero el color se
+quedaba en el gris neutro de siempre. Se arregló con los utilities direccionales
+(`border-b-{color}`, `border-l-{color}`), que si tocan un lado no tocan los demás.
 
 **Operaciones va aparte del Histórico a propósito.** El Histórico responde *«¿qué
 decidí?»* —setups, balance, disciplina— y Operaciones responde *«¿qué hice?»*. Son

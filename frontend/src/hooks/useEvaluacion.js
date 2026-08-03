@@ -37,7 +37,13 @@ export function useEvaluacion() {
     getCatalog({ signal: controlador.signal })
       .then((datos) => {
         setCatalogo(datos);
-        setSelections({ ...datos.defaults });
+        // Sin preseleccionar nada: arrancar con las seis ya contestadas por
+        // el catálogo escondía el gesto de describir el gráfico -- el trader
+        // veía un veredicto antes de haber mirado nada. Empezar en blanco
+        // hace que cada respuesta sea deliberada, y el color de cada bloque
+        // (ver EvaluationForm.jsx) es justo la señal que sustituye a "ya
+        // viene marcado, luego está bien".
+        setSelections({});
         setEstadoCatalogo("ok");
       })
       .catch((fallo) => {

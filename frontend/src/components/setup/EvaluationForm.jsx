@@ -39,6 +39,7 @@ export default function EvaluationForm({
   indicadores,
   selections,
   onElegir,
+  pendientes,
 }) {
   if (estadoCatalogo === "cargando") {
     return (
@@ -66,9 +67,24 @@ export default function EvaluationForm({
     <section className="rounded-lg border border-line bg-surface overflow-hidden">
       {/* Misma receta de densidad que ya llevan Decision/Confluence/Permission
           Panel (`px-3 py-1.5 text-2xs`) -- se había quedado fuera cuando se
-          escribió esa escala, y ahora sí hace falta el hueco que ahorra. */}
-      <h2 className="border-b border-line px-3 py-1.5 text-2xs uppercase tracking-wide text-ink-dim">
+          escribió esa escala, y ahora sí hace falta el hueco que ahorra.
+
+          El progreso ("N sin responder") vive aquí y no en la cabecera de la
+          página -- que se quitó entera para ganar alto -- porque este es el
+          único sitio que ya se mira mientras se contesta. Con los seis
+          bloques empezando en blanco y coloreándose uno a uno, es un resumen
+          rápido de cuántos faltan sin tener que contarlos. */}
+      {/* `pr-14 sm:pr-0`: sin la cabecera de página que antes reservaba ese
+          hueco, esta es ahora la fila más alta de la pantalla en móvil, justo
+          donde flota el botón «Salir» (`fixed right-4 top-4`) -- sin el
+          padding, "N sin responder" quedaría debajo del botón. */}
+      <h2 className="flex items-center justify-between border-b border-line px-3 py-1.5 pr-14 text-2xs uppercase tracking-wide text-ink-dim sm:pr-3">
         Qué ves en el gráfico
+        {pendientes != null && (
+          <span className={`normal-case tracking-normal ${pendientes > 0 ? "text-cls-medium" : "text-ink-faint"}`}>
+            {pendientes === 0 ? "Las seis respondidas" : `${pendientes} sin responder`}
+          </span>
+        )}
       </h2>
       <ul className="divide-y divide-line lg:grid lg:grid-cols-2 lg:divide-y-0">
         {indicadores.map((indicador, i) => (
@@ -90,23 +106,63 @@ export default function EvaluationForm({
   );
 }
 
+/**
+ * El acento de color de un bloque de indicador: verde si lo respondido suma,
+ * rojo si resta, gris si es neutro (0), y nada si todavía no se contestó.
+ *
+ * Antes de este cambio, las seis preguntas llegaban precontestadas con los
+ * valores por defecto del catálogo -- el trader veía un veredicto sin haber
+ * mirado el gráfico. Ahora empiezan en blanco, y este acento es lo que
+ * sustituye a "ya viene marcado": de un vistazo se distingue lo contestado
+ * de lo que falta, y dentro de lo contestado, si ayuda o perjudica al
+ * balance -- sin tener que leer el signo de cada +30/−15 uno a uno.
+ *
+ * Reutiliza los mismos tokens que el resto del dashboard (`long`/`short`/
+ * `flat`) en vez de inventar un verde y un rojo propios: es el mismo
+ * lenguaje de color que ya usa la barra de balance y el Confluence Score,
+ * así que "verde" ya significa lo mismo en toda la pantalla.
+ */
+function colorPorPuntos(puntos) {
+  if (puntos > 0) return "border-l-long bg-long/[0.04]";
+  if (puntos < 0) return "border-l-short bg-short/[0.04]";
+  return "border-l-flat bg-flat/[0.04]";
+}
+
 function IndicatorField({ indicador, valor, onElegir, bordeInferior, bordeIzquierdo }) {
   const sinResponder = valor === null;
+  const opcionElegida = sinResponder
+    ? null
+    : indicador.options.find((o) => o.code === valor);
+
+  // Sin responder: el indicador puerta (puede bloquear todo el resultado por
+  // la Regla A) se insinúa con el acento ámbar de siempre, antes de que
+  // nadie llegue a leer la etiqueta. El resto, sin marco -- "sin responder"
+  // ya lo dice la insignia de al lado, no hace falta repetirlo con color.
+  // Respondido: el acento pasa a ser por puntos, tape lo que tape -- es la
+  // señal más útil una vez que ya hay un valor que enseñar.
+  const acento = opcionElegida
+    ? colorPorPuntos(opcionElegida.points)
+    : indicador.is_gate
+      ? "border-l-cls-medium bg-cls-medium/[0.03]"
+      : "";
 
   return (
     <li
-      className={`px-4 py-1.5 ${
-        // El indicador puerta es estructuralmente distinto -- puede bloquear
-        // todo el resultado (Regla A) -- así que se insinúa con un acento en
-        // el borde izquierdo antes de que nadie llegue a leer la etiqueta.
-        // El resto de la fila no lleva tinte: solo el canto, para que siga
-        // leyéndose como parte de la misma lista y no como una tarjeta aparte.
-        indicador.is_gate ? "border-l-2 border-l-cls-medium bg-cls-medium/[0.03]" : ""
-      } ${bordeInferior ? "lg:border-b lg:border-line" : ""} ${
-        // Si ya lleva el acento de puerta, ese borde izquierdo no se toca:
-        // dos colores compitiendo por el mismo canto se verían mal, y el
-        // acento de puerta es la señal más importante de las dos.
-        bordeIzquierdo && !indicador.is_gate ? "lg:border-l lg:border-line" : ""
+      className={`px-4 py-1.5 transition-colors duration-200 ${
+        acento ? `border-l-2 ${acento}` : ""
+      } ${
+        // `border-b-line`, no `border-line`: el genérico `border-{color}` fija
+        // el color de LOS CUATRO lados a la vez (es `border-color`, no solo
+        // el de abajo), así que se comía el verde/rojo/gris del acento de
+        // arriba en cuanto un bloque tenía también borde inferior de fila --
+        // width:2px del acento, color:gris del genérico, sin avisar. Con el
+        // utility direccional (`border-b-{color}`) cada lado es independiente.
+        bordeInferior ? "lg:border-b lg:border-b-line" : ""
+      } ${
+        // Si ya lleva un acento en el canto izquierdo -- puerta o por puntos
+        // -- ese lado no se toca con la línea de columna: dos bordes
+        // compitiendo por el mismo píxel se ven mal, y el acento manda.
+        bordeIzquierdo && !acento ? "lg:border-l lg:border-l-line" : ""
       }`}
     >
       {/* El nombre encima y las opciones debajo, a todo el ancho de la
