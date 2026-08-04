@@ -151,12 +151,44 @@ def _get(
     except urllib.error.HTTPError as e:
         # El cuerpo de un error de Bybit suele explicar el motivo mejor que el
         # código HTTP (rate limit, firma inválida, IP no autorizada).
-        detalle = ""
+        cuerpo_error = ""
         try:
-            detalle = e.read().decode("utf-8", errors="replace")[:400]
+            cuerpo_error = e.read().decode("utf-8", errors="replace")
         except Exception:  # noqa: BLE001 - leer el detalle no puede tapar el error real
             pass
-        raise BybitError(f"Bybit respondio HTTP {e.code} a {ruta}. {detalle}") from e
+
+        if e.code == 403:
+            # Un 403 aquí casi nunca viene de Bybit -- su firma y sus retCode
+            # de negocio devuelven 200 o 401/10003/10010, no 403 -- así que lo
+            # normal es que sea un proxy/WAF delante bloqueando por IP antes
+            # de que la petición llegue a la API. Se registra todo lo que
+            # ayuda a diagnosticar ESO: el cuerpo completo (a veces la propia
+            # página de bloqueo dice la IP que rechazó), las cabeceras enteras
+            # de la respuesta y la URL exacta que se llamó -- sin recortar a
+            # 400 caracteres como el resto de errores, porque aquí el cuerpo
+            # es la pista, no un extra.
+            ip_origen = next(
+                (
+                    f"{nombre}: {valor}"
+                    for nombre, valor in e.headers.items()
+                    if "ip" in nombre.lower()
+                ),
+                None,
+            )
+            log.error(
+                "Bybit (o un proxy delante) respondio HTTP 403 a %s\n"
+                "URL exacta: %s\n"
+                "IP de origen en cabeceras: %s\n"
+                "Cabeceras de la respuesta: %s\n"
+                "Cuerpo completo de la respuesta:\n%s",
+                ruta,
+                peticion.full_url,
+                ip_origen or "(ninguna cabecera con 'ip' en el nombre)",
+                dict(e.headers.items()),
+                cuerpo_error,
+            )
+
+        raise BybitError(f"Bybit respondio HTTP {e.code} a {ruta}. {cuerpo_error[:400]}") from e
     except urllib.error.URLError as e:
         raise BybitError(f"No se pudo contactar con Bybit ({host(testnet)}): {e.reason}") from e
     except json.JSONDecodeError as e:
