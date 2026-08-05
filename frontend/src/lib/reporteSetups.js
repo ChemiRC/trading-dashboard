@@ -392,10 +392,27 @@ function bloqueDeSetup(pluma, setup) {
   }
 
   // --- Notas del setup ---
+  // Con etiqueta explícita ("Notas del setup") y no un "Notas" genérico: hay
+  // otras dos que pueden aparecer más abajo -- el journal de la operación
+  // vinculada y las de cierre -- y las tres son momentos distintos (antes de
+  // operar, durante/después en la operación real, al cerrar). Confundirlas
+  // sería peor que no tenerlas.
   if (setup.notes) {
     pluma.espacio(4);
-    pluma.linea("Notas", { tamano: 7.5, gris: 0.5, interlinea: 11 });
+    pluma.linea("Notas del setup", { tamano: 7.5, gris: 0.5, interlinea: 11 });
     pluma.parrafo(setup.notes, { tamano: 8.5, gris: 0.25, interlinea: 11 });
+  }
+
+  // --- Journal de la operación vinculada ---
+  // `trade_journal_notes` es del `trades` enlazado, no del setup: la misma
+  // fuente que ya trae `GET /api/setups/{id}` para el puente visual de
+  // Histórico -> Operaciones (ver SetupDetail.jsx). Si el setup no tiene
+  // operación vinculada, o la tiene pero sin journal, el campo llega null y
+  // sencillamente no hay sección -- nada de un hueco vacío con su etiqueta.
+  if (setup.trade_journal_notes) {
+    pluma.espacio(4);
+    pluma.linea("Journal de la operación", { tamano: 7.5, gris: 0.5, interlinea: 11 });
+    pluma.parrafo(setup.trade_journal_notes, { tamano: 8.5, gris: 0.25, interlinea: 11 });
   }
 
   // --- Resultado ---
@@ -410,6 +427,8 @@ function bloqueDeSetup(pluma, setup) {
   } else {
     pluma.linea(`Resultado: ${resultado(setup)}`, { tamano: 8.5, negrita: true, gris: 0.15 });
     if (setup.result_notes) {
+      pluma.espacio(2);
+      pluma.linea("Notas de cierre", { tamano: 7.5, gris: 0.5, interlinea: 11 });
       pluma.parrafo(setup.result_notes, { tamano: 8.5, gris: 0.35, interlinea: 11 });
     }
   }

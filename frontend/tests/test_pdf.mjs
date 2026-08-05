@@ -363,6 +363,32 @@ caso("informe: el NO TRADE lleva su motivo y no finge un resultado", () => {
   assert.ok(texto.includes(aCadenaHex("Resultado: no aplica — quedarse fuera no tiene desenlace.").slice(1, -1)));
 });
 
+caso("informe: setup con operación vinculada y journal muestra las tres notas, distinguibles", () => {
+  const conJournal = { ...SETUP, trade_journal_notes: "Aguanté hasta el objetivo pese a la duda inicial." };
+  const texto = comoTexto(construirReporteSetups([conJournal]));
+  assert.ok(texto.includes(aCadenaHex("Notas del setup").slice(1, -1)), "falta la etiqueta 'Notas del setup'");
+  assert.ok(texto.includes(aCadenaHex("Journal de la operación").slice(1, -1)), "falta la etiqueta 'Journal de la operación'");
+  assert.ok(texto.includes(aCadenaHex("Notas de cierre").slice(1, -1)), "falta la etiqueta 'Notas de cierre'");
+  assert.ok(texto.includes(aCadenaHex(SETUP.notes).slice(1, -1)), "no está el texto de las notas del setup");
+  assert.ok(
+    texto.includes(aCadenaHex(conJournal.trade_journal_notes).slice(1, -1)),
+    "no está el texto del journal de la operación",
+  );
+  assert.ok(texto.includes(aCadenaHex(SETUP.result_notes).slice(1, -1)), "no está el texto de las notas de cierre");
+});
+
+caso("informe: sin operación vinculada, no aparece la sección de journal", () => {
+  const sinTrade = { ...SETUP, trade_journal_notes: null };
+  const texto = comoTexto(construirReporteSetups([sinTrade]));
+  assert.ok(!texto.includes(aCadenaHex("Journal de la operación").slice(1, -1)));
+});
+
+caso("informe: con operación vinculada pero sin journal, tampoco aparece la sección vacía", () => {
+  const tradeSinJournal = { ...SETUP, trade_id: "33333333-3333-3333-3333-333333333333", trade_journal_notes: "" };
+  const texto = comoTexto(construirReporteSetups([tradeSinJournal]));
+  assert.ok(!texto.includes(aCadenaHex("Journal de la operación").slice(1, -1)));
+});
+
 caso("informe: muchos setups reparten en varias páginas", () => {
   const muchos = Array.from({ length: 25 }, (_, i) => ({ ...SETUP, id: String(i) }));
   const texto = comoTexto(construirReporteSetups(muchos));

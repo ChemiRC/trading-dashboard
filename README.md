@@ -820,6 +820,28 @@ después. Verificado en el navegador vía CDP: el selector lista «Agosto 2026 �
 setups», «Ninguno» deshabilita la descarga, y confirmar genera un PDF válido
 (`application/pdf`, sin errores de consola).
 
+**El journal de la operación vinculada también sale en el PDF, aparte de las notas
+del setup.** No era un bug —nunca se incluyó a propósito— sino un hueco: si un setup
+tiene una operación vinculada (el mismo puente visual de Histórico -> Operaciones, ver
+más arriba), su `trade_journal_notes` —lo que el trader escribió sobre la operación real,
+durante o después de operar— no llegaba al documento, solo las notas del setup (antes de
+operar) y las de cierre (al registrar el resultado). Las tres son momentos distintos y
+ahora las tres llevan etiqueta propia en el bloque de cada setup: **«Notas del setup»**,
+**«Journal de la operación»** y **«Notas de cierre»**, en ese orden. Ninguna aparece si
+no hay texto que mostrar —ni un hueco vacío con su etiqueta si el setup no tiene
+operación vinculada, o la tiene pero sin journal—. No hace falta traer los trades por
+separado: `trade_journal_notes` ya viaja en el mismo `GET /api/setups/{id}` que usa
+`ExportPdfButton.jsx` para el desglose congelado de cada setup, así que reusarlo en
+`bloqueDeSetup()` (en `reporteSetups.js`) no añade ninguna petición nueva.
+
+3 tests nuevos cubren las tres etiquetas juntas y distinguibles, que la sección de
+journal no aparece sin operación vinculada, y que tampoco aparece vacía cuando la
+operación no tiene journal. Verificado además con datos reales vía CDP: un setup
+`ZZTEST` con una operación manual vinculada y journal propio bajado del histórico mostró
+las tres notas —«ZZTEST -- nota del setup...», «ZZTEST -- journal de la operacion
+real...», «ZZTEST -- nota de cierre.»— cada una bajo su etiqueta, y el dato de prueba se
+borró al terminar.
+
 ### Tokens de color
 
 | Token | Para qué |
